@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <iostream>
 #include <string>
+#include <locale>
+#include <codecvt>
 
 namespace Terminal {
     TerminalSize getTerminalSize() {
@@ -45,5 +47,28 @@ namespace Terminal {
             result += str;
         }
         return result;
+    }
+
+    // 文字列の表示幅を計算（全角2、半角1）
+    int getDisplayWidth(const std::string& str) {
+        std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+        std::wstring wstr = conv.from_bytes(str);
+        int width = 0;
+        for (wchar_t wc : wstr) {
+            // 全角判定（簡易版）
+            if ((wc >= 0x1100 && wc <= 0x115F) ||
+                (wc >= 0x2E80 && wc <= 0xA4CF) ||
+                (wc >= 0xAC00 && wc <= 0xD7A3) ||
+                (wc >= 0xF900 && wc <= 0xFAFF) ||
+                (wc >= 0xFE10 && wc <= 0xFE19) ||
+                (wc >= 0xFE30 && wc <= 0xFE6F) ||
+                (wc >= 0xFF00 && wc <= 0xFF60) ||
+                (wc >= 0xFFE0 && wc <= 0xFFE6)) {
+                width += 2;
+            } else {
+                width += 1;
+            }
+        }
+        return width;
     }
 }
