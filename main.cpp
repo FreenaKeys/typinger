@@ -2,6 +2,12 @@
 #include <string>
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
+#include <vector> // ← 追加
+
+struct Cursor {
+    int x;
+    int y;
+};
 
 int main() {
     // UTF-8 出力対応
@@ -15,7 +21,9 @@ int main() {
 
     // 画面全体クリア
     Terminal::clearScreen();
-
+    Cursor cursor {0, 1};
+    
+    //初期化終了    
 
 
 
@@ -41,34 +49,99 @@ int main() {
     Terminal::overwriteString(0, 3, Terminal::Value_to_Blank(5, "1"));
     Terminal::overwriteString(0, 4, "12345\n");
 
+    std::string line;
+    // 複数行バッファ
+    std::vector<std::string> lines(size.height, "");
+    cursor.x = 0;
+    cursor.y = 6; // 入力開始行
 
+    DWORD lastMoveTime = 0;
+    const DWORD repeatDelay = 300; // 最初のリピート待ち(ms)
+    const DWORD repeatInterval = 50; // リピート間隔(ms)
+    int lastMoveKey = 0;
 
-
-
-
-
-
-    // キー入力ループ
     while (true) {
-        for (int key = 8; key <= 255; ++key) {
-            if (GetAsyncKeyState(key) & 0x8000) { // 押された瞬間のみ
-                msg = u8"入力されたキー: ";
-                msg += static_cast<char>(key);
+        bool updated = false;
 
-                // 最下行に上書き表示
-                Terminal::overwriteString(0, size.height - 3, msg); // 1
+        // Q/qで終了
+        if ((GetAsyncKeyState('Q') & 0x8000) || (GetAsyncKeyState('q') & 0x8000)) {
+            HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+            FlushConsoleInputBuffer(hStdin);
+            return 0;
+        }
 
-                // Q/qで終了
-                if (key == 'Q' || key == 'q') {
-                    // 終了前にバッファクリア
-                    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-                    FlushConsoleInputBuffer(hStdin);
-                    return 0;
+        // キーリピート用の現在時刻
+        DWORD now = GetTickCount();
+
+        // --- ここから特殊キー処理 ---
+        // バックスペース
+        if (GetAsyncKeyState(VK_BACK) & 0x8000 && cursor.x > 0) {
+            auto& line = lines[cursor.y];
+            line.erase(cursor.x - 1, 1);
+            cursor.x--;
+            updated = true;
+            while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(1);
+        }
+        // 上
+        else if (GetAsyncKeyState(VK_UP) & 0x8000 && cursor.y > 0) {
+            cursor.y--;
+            cursor.x = std::min(cursor.x, (int)lines[cursor.y].size());
+            updated = true;
+            while (GetAsyncKeyState(VK_UP) & 0x8000) Sleep(1);
+        }
+        // 下
+        else if (GetAsyncKeyState(VK_DOWN) & 0x8000 && cursor.y < size.height - 1) {
+            cursor.y++;
+            cursor.x = std::min(cursor.x, (int)lines[cursor.y].size());
+            updated = true;
+            while (GetAsyncKeyState(VK_DOWN) & 0x8000) Sleep(1);
+        }
+        // 左
+        else if (GetAsyncKeyState(VK_LEFT) & 0x8000 && cursor.x > 0) {
+            cursor.x--;
+            updated = true;
+            while (GetAsyncKeyState(VK_LEFT) & 0x8000) Sleep(1);
+        }
+        // 右
+        else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && cursor.x < lines[cursor.y].size()) {
+            cursor.x++;
+            updated = true;
+            while (GetAsyncKeyState(VK_RIGHT) & 0x8000) Sleep(1);
+        }
+        // Enterキー（改行：下の行に移動）
+        else if (GetAsyncKeyState(VK_RETURN) & 0x8000 && cursor.y < size.height - 1) {
+            cursor.y++;
+            cursor.x = 0;
+            updated = true;
+            while (GetAsyncKeyState(VK_RETURN) & 0x8000) Sleep(1);
+        }
+
+        // 文字入力（ASCII範囲のみ、特殊キー除外）
+        for (int key = 32; key <= 126; ++key) {
+            if (key == VK_LEFT || key == VK_RIGHT || key == VK_UP || key == VK_DOWN || key == VK_RETURN || key == VK_BACK) continue;
+            if (GetAsyncKeyState(key) & 0x8000) {
+                auto& line = lines[cursor.y];
+                char ch = static_cast<char>(key);
+                if (ch >= 'A' && ch <= 'Z') {
+                    bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                    if (!shift) ch += 32; // 小文字化
                 }
-
-                Sleep(10); // 連続判定防止
+                line.insert(cursor.x, 1, ch);
+                cursor.x++;
+                updated = true;
+                while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
+                break;
             }
         }
+
+        // 入力があった時だけ描画
+        if (updated) {
+            // 現在行のみクリア＆描画
+            Terminal::overwriteString(0, cursor.y, Terminal::Value_to_Blank(size.width, " "));
+            Terminal::overwriteString(0, cursor.y, lines[cursor.y]);
+            Terminal::SetConsoleCursorPosition(cursor.x, cursor.y);
+        }
+        Sleep(2); // CPU負荷対策
     }
     // 終了前にバッファクリア
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);

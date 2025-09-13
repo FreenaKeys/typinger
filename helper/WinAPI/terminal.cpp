@@ -28,6 +28,12 @@ namespace Terminal {
         DWORD written;
         WriteConsoleA(hConsole, str.c_str(), static_cast<DWORD>(str.size()), &written, nullptr);
     }
+    // カーソル位置を指定（文字列なし）
+    void SetConsoleCursorPosition(int x, int y) {
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        COORD pos = { static_cast<SHORT>(x), static_cast<SHORT>(y) };
+        SetConsoleCursorPosition(hConsole, pos);
+    }
 
     // 画面をリセット（クリア）
     void clearScreen() {
