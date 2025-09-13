@@ -71,4 +71,18 @@ namespace Terminal {
         }
         return width;
     }
+
+    // 指定位置に部分的に文字列を上書き
+    void overwritePartial(int x, int y, const std::string& str) {
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        COORD pos = { static_cast<SHORT>(x), static_cast<SHORT>(y) };
+        SetConsoleCursorPosition(hConsole, pos);
+
+        // UTF-8→UTF-16変換（日本語対応）
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
+        std::wstring wstr = conv.from_bytes(str);
+
+        DWORD written;
+        WriteConsoleW(hConsole, wstr.c_str(), static_cast<DWORD>(wstr.size()), &written, nullptr);
+    }
 }
