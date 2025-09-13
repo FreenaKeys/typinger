@@ -9,28 +9,18 @@ struct Cursor {
     int y;
 };
 
-int main() {
-    // UTF-8 出力対応
-    SetConsoleOutputCP(CP_UTF8);
-    
-    std::cout << "Hello, World!" << std::endl;
-
+int initialized_UI(const char* version) {
+    std::string Char_version = "Error! Cannot get version info";
+    if (version){
+        Char_version = std::string(version);
+    }else{ return -1;}
     // ターミナルサイズ取得
     auto size = Terminal::getTerminalSize();
-    std::cout << "Width: " << size.width << ", Height: " << size.height << std::endl;
-
-    // 画面全体クリア
-    Terminal::clearScreen();
-    Cursor cursor {0, 1};
-    
-    //初期化終了    
-
-
 
     // 繰り返し表示例
-    std::string msg = "Welcome to Typinger!";
+    std::string msg = "Welcome to Typinger! ";
     std::string blank = Terminal::Value_to_Blank((size.width - msg.size()) / 2, " ");
-    msg = blank + msg + blank;
+    msg = blank + msg + Terminal::Value_to_Blank(((size.width - msg.size()) / 2) - ("TerminalSize:" + std::to_string(size.width) + "x" + std::to_string(size.height)).size() , " ") + "TerminalSize:" + std::to_string(size.width) + "x" + std::to_string(size.height);
     Terminal::overwriteString(0, size.height - 2, "\x1b[7;37m" + msg + "\x1b[0m"); // 反転表示
     // 日本語メッセージ表示
     msg = u8"/!\\ これは開発中のタイピングソフトです、まだコード書いてる途中!　Qで終了";      
@@ -40,14 +30,46 @@ int main() {
     Terminal::overwriteString(0, size.height - 1, "\x1b[7;37m" + msg + "\x1b[0m");
 
     // 上書き表示
-    msg = u8"Typinger(仮) Version 0.1";
+    msg = std::string(u8"Typinger(仮) Version ") + Char_version;
     dispWidth = Terminal::getDisplayWidth(msg);
     blank = Terminal::Value_to_Blank((size.width - dispWidth) / 2, " ");
     msg =  blank + msg + blank;
     Terminal::overwriteString(0, 0, "\x1b[7;37m" + msg + "\x1b[0m");
 
-    Terminal::overwriteString(0, 3, Terminal::Value_to_Blank(5, "1"));
-    Terminal::overwriteString(0, 4, "12345\n");
+    Terminal::overwriteString(0, 1, "カーソルキーで移動、文字入力、BackSpaceで削除、Enterで改行");
+
+    Terminal::overwriteString(0, 2, "#" + Terminal::Value_to_Blank(size.width - 2, "=") + "#"); // 入力エリアクリア
+
+    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English)";
+    dispWidth = Terminal::getDisplayWidth(type_word);
+    Terminal::overwriteString(0, 3, "#" + type_word + Terminal::Value_to_Blank(size.width - dispWidth - 2, " ") + "#");
+
+    std::string type_word_rubi = u8"kokoni renshuuyou no tekisuto nyuuryoku";
+    dispWidth = Terminal::getDisplayWidth(type_word_rubi);
+    Terminal::overwriteString(0, 4, "#" + type_word_rubi + Terminal::Value_to_Blank(size.width - dispWidth - 2, " ") + "#");
+
+    Terminal::overwriteString(0, 5,"#" + Terminal::Value_to_Blank(size.width - 3, "=") + "=#"); // 入力エリアクリア
+    return 0;
+
+}
+
+
+int main() {
+    //初期化開始
+        // UTF-8 出力対応
+        SetConsoleOutputCP(CP_UTF8);
+        // ターミナルサイズ取得
+        auto size = Terminal::getTerminalSize();
+
+        // 画面全体クリア
+        Terminal::clearScreen();
+        Cursor cursor {0, 1};
+        //UIの呼び出し
+        const char* version = "0.0.0 - Dummy Version"; // ここでバージョンを指定
+        initialized_UI(version); // 小数点以下切り捨てで整数化
+
+    //初期化終了
+
 
     std::string line;
     // 複数行バッファ
@@ -63,6 +85,8 @@ int main() {
     while (true) {
         bool updated = false;
 
+
+
         // Q/qで終了
         if ((GetAsyncKeyState('Q') & 0x8000) || (GetAsyncKeyState('q') & 0x8000)) {
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -70,10 +94,8 @@ int main() {
             return 0;
         }
 
-        // キーリピート用の現在時刻
         DWORD now = GetTickCount();
 
-        // --- ここから特殊キー処理 ---
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000 && cursor.x > 0) {
             auto& line = lines[cursor.y];
@@ -83,14 +105,14 @@ int main() {
             while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(1);
         }
         // 上
-        else if (GetAsyncKeyState(VK_UP) & 0x8000 && cursor.y > 0) {
+        else if (GetAsyncKeyState(VK_UP) & 0x8000 && cursor.y > 1) {
             cursor.y--;
             cursor.x = std::min(cursor.x, (int)lines[cursor.y].size());
             updated = true;
             while (GetAsyncKeyState(VK_UP) & 0x8000) Sleep(1);
         }
         // 下
-        else if (GetAsyncKeyState(VK_DOWN) & 0x8000 && cursor.y < size.height - 1) {
+        else if (GetAsyncKeyState(VK_DOWN) & 0x8000 && cursor.y < (int)lines.size() - 3) {
             cursor.y++;
             cursor.x = std::min(cursor.x, (int)lines[cursor.y].size());
             updated = true;
@@ -103,13 +125,13 @@ int main() {
             while (GetAsyncKeyState(VK_LEFT) & 0x8000) Sleep(1);
         }
         // 右
-        else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && cursor.x < lines[cursor.y].size()) {
+        else if (GetAsyncKeyState(VK_RIGHT) & 0x8000 && cursor.x < (int)lines[cursor.y].size()) {
             cursor.x++;
             updated = true;
             while (GetAsyncKeyState(VK_RIGHT) & 0x8000) Sleep(1);
         }
         // Enterキー（改行：下の行に移動）
-        else if (GetAsyncKeyState(VK_RETURN) & 0x8000 && cursor.y < size.height - 1) {
+        else if (GetAsyncKeyState(VK_RETURN) & 0x8000 && cursor.y < (int)lines.size() - 2) {
             cursor.y++;
             cursor.x = 0;
             updated = true;
@@ -136,13 +158,13 @@ int main() {
 
         // 入力があった時だけ描画
         if (updated) {
-            // 現在行のみクリア＆描画
             Terminal::overwriteString(0, cursor.y, Terminal::Value_to_Blank(size.width, " "));
             Terminal::overwriteString(0, cursor.y, lines[cursor.y]);
             Terminal::SetConsoleCursorPosition(cursor.x, cursor.y);
         }
-        Sleep(2); // CPU負荷対策
+        Sleep(2);
     }
+
     // 終了前にバッファクリア
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     FlushConsoleInputBuffer(hStdin);
