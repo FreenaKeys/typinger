@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+
 
 namespace Terminal {
     struct TerminalSize {
@@ -7,4 +9,7 @@ namespace Terminal {
     };
 
     TerminalSize getTerminalSize();
+    void overwriteString(int x, int y, const std::string& str);
+    void clearScreen();
+    std::string Value_to_Blank(int value, const std::string& str);
 }
