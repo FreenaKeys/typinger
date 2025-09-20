@@ -1,0 +1,10 @@
+{
+    "makefile.makePath": "C:\\mingw64\\bin\\mingw32-make.exe",
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "c:\\Users\\CT1105\\typinger",
+            "binaryPath": "c:\\Users\\CT1105\\typinger\\main.exe",
+            "binaryArgs": []
+        }
+    ]
+}
