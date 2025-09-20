@@ -4,3 +4,5 @@ msys-2.0.dll
 msys-gcc_s-seh-1.dll
 msys-stdc++-6.dll
 main.exe
+.vscode/settings.json
+.vscode/tasks.json
