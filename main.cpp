@@ -40,7 +40,7 @@ int initialized_UI(const char* version) {
 
     Terminal::overwriteString(0, 2, "#" + Terminal::Value_to_Blank(size.width - 2, "=") + "#"); // 入力エリアクリア
 
-    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English)";
+    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English!)";
     dispWidth = Terminal::getDisplayWidth(type_word);
     Terminal::overwriteString(0, 3, "#" + type_word + Terminal::Value_to_Blank(size.width - dispWidth - 2, " ") + "#");
 
