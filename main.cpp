@@ -40,7 +40,7 @@ int initialized_UI(const char* version) {
 
     Terminal::overwriteString(0, 2, "#" + Terminal::Value_to_Blank(size.width - 2, "=") + "#"); // 入力エリアクリア
 
-    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English)";
+    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English!)";
     dispWidth = Terminal::getDisplayWidth(type_word);
     Terminal::overwriteString(0, 3, "#" + type_word + Terminal::Value_to_Blank(size.width - dispWidth - 2, " ") + "#");
 
@@ -74,7 +74,7 @@ int main() {
     std::string line;
     // 複数行バッファ
     std::vector<std::string> lines(size.height, "");
-    cursor.x = 0;
+    cursor.x = 1;
     cursor.y = 6; // 入力開始行
 
     DWORD lastMoveTime = 0;
@@ -84,7 +84,7 @@ int main() {
 
     while (true) {
         bool updated = false;
-
+        bool backspaceHeld = false;
 
 
         // Q/qで終了
@@ -97,11 +97,13 @@ int main() {
         DWORD now = GetTickCount();
 
         // バックスペース
-        if (GetAsyncKeyState(VK_BACK) & 0x8000 && cursor.x > 0) {
+        if (GetAsyncKeyState(VK_BACK) & 0x8000) {
             auto& line = lines[cursor.y];
-            line.erase(cursor.x - 1, 1);
-            cursor.x--;
-            updated = true;
+            if (cursor.x > 0) {
+                line.erase(cursor.x - 1, 1);
+                cursor.x--;
+                updated = true;
+            }
             while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(1);
         }
         // 上
@@ -158,6 +160,16 @@ int main() {
 
         // 入力があった時だけ描画
         if (updated) {
+            if (backspaceHeld) {
+                backspaceHeld = false;
+                if (cursor.x < 1) {
+                    if (cursor.y > 1) {
+                        cursor.y = cursor.y - 1;
+                    }
+                } else {
+                    cursor.x = cursor.x - 1;
+                }
+            }
             Terminal::overwriteString(0, cursor.y, Terminal::Value_to_Blank(size.width, " "));
             Terminal::overwriteString(0, cursor.y, lines[cursor.y]);
             Terminal::SetConsoleCursorPosition(cursor.x, cursor.y);
@@ -170,3 +182,4 @@ int main() {
     FlushConsoleInputBuffer(hStdin);
     return 0;
 }
+
