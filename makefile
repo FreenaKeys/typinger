@@ -13,7 +13,7 @@ TARGET := main.exe
 SRCS := main.cpp 
 
 # Object files
-OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o
+OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/files/fileapi.o helper/date/date.o
 
 # Default target
 all: $(TARGET)
@@ -25,6 +25,7 @@ $(TARGET): $(OBJS)
 # Compile
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 
 # Clean
 clean:

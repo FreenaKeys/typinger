@@ -2,6 +2,8 @@
 #include <string>
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
+#include "helper/files/fileapi.h"
+#include "helper/date/date.h"
 #include <vector> // ← 追加
 
 struct Cursor {
@@ -56,6 +58,9 @@ int initialized_UI(const char* version) {
 
 int main() {
     //初期化開始
+        std::string log_dir = "./logs/";
+        CreateDirectoryA(log_dir.c_str(), NULL); // ログディレクトリ作
+        FileAPI::overwriteFile("./logs/log.log", date::date() + " - Typinger Log File\n");
         // UTF-8 出力対応
         SetConsoleOutputCP(CP_UTF8);
         // ターミナルサイズ取得
@@ -91,6 +96,14 @@ int main() {
         if ((GetAsyncKeyState('Q') & 0x8000) || (GetAsyncKeyState('q') & 0x8000)) {
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
             FlushConsoleInputBuffer(hStdin);
+            std::cout << "\nExiting Typinger...\n";
+
+            try {
+                    FileAPI::writeFile("./typed_text.txt", "1111\n");
+                    FileAPI::writeFile("./typed_text.txt", "=!== Typinger Output File ===!\n");
+            }catch(const std::exception& e){
+                    std::cout << "Error saving typed text: " << e.what() << "\n";
+                }
             return 0;
         }
 
@@ -180,6 +193,8 @@ int main() {
     // 終了前にバッファクリア
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     FlushConsoleInputBuffer(hStdin);
+
     return 0;
+    
 }
 

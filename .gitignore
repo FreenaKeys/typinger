@@ -11,3 +11,7 @@ main.exe
 main.o
 
 >>>>>>> 965919fc2c06f84c2eda6f815d5a18f01696a0d3
+typed_text.txt
+logs/log.log
+helper/date/date.o
+helper/files/fileapi.o
