@@ -2,7 +2,7 @@
 #include <string>
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
-#include <vector> // ← 追加
+#include <vector>
 
 struct Cursor {
     int x;
@@ -40,7 +40,7 @@ int initialized_UI(const char* version) {
 
     Terminal::overwriteString(0, 2, "#" + Terminal::Value_to_Blank(size.width - 2, "=") + "#"); // 入力エリアクリア
 
-    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English)";
+    std::string type_word = u8" ここに練習用のテキスト入力(Japanese or English!)";
     dispWidth = Terminal::getDisplayWidth(type_word);
     Terminal::overwriteString(0, 3, "#" + type_word + Terminal::Value_to_Blank(size.width - dispWidth - 2, " ") + "#");
 
@@ -63,7 +63,8 @@ int main() {
 
         // 画面全体クリア
         Terminal::clearScreen();
-        Cursor cursor {0, 1};
+        // 入力エリアの先頭にカーソルを初期化
+        Cursor cursor {0, 6};
         //UIの呼び出し
         const char* version = "0.0.0 - Dummy Version"; // ここでバージョンを指定
         initialized_UI(version); // 小数点以下切り捨てで整数化
@@ -74,7 +75,7 @@ int main() {
     std::string line;
     // 複数行バッファ
     std::vector<std::string> lines(size.height, "");
-    cursor.x = 1;
+    cursor.x = 0;
     cursor.y = 6; // 入力開始行
 
     DWORD lastMoveTime = 0;
@@ -99,12 +100,11 @@ int main() {
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
             auto& line = lines[cursor.y];
-            if (cursor.x > 0) {
-                // 通常のバックスペース（行内）
+            if (cursor.x > 0 && cursor.x <= (int)line.size()) {
                 line.erase(cursor.x - 1, 1);
                 cursor.x--;
                 updated = true;
-            } else if (cursor.x == 0 && cursor.y > 1) {
+            } else if (cursor.x == 0 && cursor.y > 6) {
                 // 行頭でバックスペース：前の行と結合
                 int prevY = cursor.y - 1;
                 auto& prevLine = lines[prevY];
@@ -121,7 +121,7 @@ int main() {
             while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(1);
         }
         // 上
-        else if (GetAsyncKeyState(VK_UP) & 0x8000 && cursor.y > 1) {
+        else if (GetAsyncKeyState(VK_UP) & 0x8000 && cursor.y > 6) {
             cursor.y--;
             cursor.x = std::min(cursor.x, (int)lines[cursor.y].size());
             updated = true;
@@ -164,6 +164,9 @@ int main() {
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     if (!shift) ch += 32; // 小文字化
                 }
+                // line.size()の範囲内ならどこでも挿入可能
+                if (cursor.x < 0) cursor.x = 0;
+                if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
                 line.insert(cursor.x, 1, ch);
                 cursor.x++;
                 updated = true;
@@ -184,8 +187,11 @@ int main() {
                     cursor.x = cursor.x - 1;
                 }
             }
-            Terminal::overwriteString(0, cursor.y, Terminal::Value_to_Blank(size.width, " "));
-            Terminal::overwriteString(0, cursor.y, lines[cursor.y]);
+            // 入力エリア全体を再描画（ゴーストレター対策）
+            for (int y = 6; y < size.height - 2; ++y) {
+                Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+                Terminal::overwriteString(0, y, lines[y]);
+            }
             Terminal::SetConsoleCursorPosition(cursor.x, cursor.y);
         }
         Sleep(2);
