@@ -100,8 +100,22 @@ int main() {
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
             auto& line = lines[cursor.y];
             if (cursor.x > 0) {
+                // 通常のバックスペース（行内）
                 line.erase(cursor.x - 1, 1);
                 cursor.x--;
+                updated = true;
+            } else if (cursor.x == 0 && cursor.y > 1) {
+                // 行頭でバックスペース：前の行と結合
+                int prevY = cursor.y - 1;
+                auto& prevLine = lines[prevY];
+                int prevLen = (int)prevLine.size();
+                prevLine += line;
+                // 現在行を削除
+                lines.erase(lines.begin() + cursor.y);
+                // 空行を末尾に追加して高さ維持
+                lines.push_back("");
+                cursor.y = prevY;
+                cursor.x = prevLen;
                 updated = true;
             }
             while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(1);

@@ -15,17 +15,26 @@ SRCS := main.cpp
 # Object files
 OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o
 
+
 # Default target
-all: $(TARGET)
+all: tmpdir $(TARGET)
+
+# tmpdir: プロジェクト内のtmpディレクトリを作成
+tmpdir:
+	mkdir -p tmp
+
 
 # Link
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o $@ $^
+
 
 # Compile
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -c $< -o $@
+
 
 # Clean
 clean:
 	rm -f $(OBJS) $(TARGET)
+	rm -rf tmp

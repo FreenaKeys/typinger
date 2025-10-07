@@ -4,3 +4,4 @@ msys-stdc++-6.dll
 main.exe
 main.o
 main.exe
+helper/WinAPI/terminal.o
