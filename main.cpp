@@ -2,6 +2,7 @@
 #include <string>
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
+#include "helper/json_helper.h"
 #include <vector>
 
 struct Cursor {
