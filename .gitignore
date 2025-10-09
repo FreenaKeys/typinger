@@ -6,3 +6,4 @@ main.exe
 main.o
 main.exe
 helper/WinAPI/terminal.o
+.vscode/c_cpp_properties.json
