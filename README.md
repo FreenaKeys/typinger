@@ -4,7 +4,7 @@
 Target System is windows<br>
 Mac OS,Linux and other aren't support System API.<br>
 ### needed to make it Program
-- Unix like environment on windows such as msys2 , MinGW ,WSL(Unknow) and Cygwin
+- Unix like environment on windows such as msys2 , MinGW ,WSL(Anything OK) and Cygwin
 
 ```
  make
