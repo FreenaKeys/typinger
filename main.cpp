@@ -3,6 +3,7 @@
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
 #include "helper/json_helper.h"
+#include "core/input_recorder.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -68,12 +69,27 @@ int typing_mode() {
     cursor.x = 0;
     cursor.y = 6; // 入力開始行
 
+    // InputRecorder統合（フェーズ1-3）
+    InputRecorder::Recorder recorder;
+    recorder.startSession();
+
     while (true) {
         bool updated = false;
 
 
         // Escで終了
         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            // InputRecorder: セッション終了とデバッグ情報表示
+            recorder.endSession();
+            uint64_t duration = recorder.getSessionDuration();
+            size_t eventCount = recorder.getEventCount();
+            
+            // デバッグ情報を画面に表示
+            Terminal::overwriteString(0, size.height - 3, 
+                "Session ended. Events: " + std::to_string(eventCount) + 
+                ", Duration: " + std::to_string(duration / 1000) + " ms");
+            Sleep(2000);  // 2秒表示
+            
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
             FlushConsoleInputBuffer(hStdin);
             return 0;
@@ -83,6 +99,7 @@ int typing_mode() {
 
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
+            recorder.recordBackspace();  // Backspace記録
             auto& line = lines[cursor.y];
             if (cursor.x > 0 && cursor.x <= (int)line.size()) {
                 line.erase(cursor.x - 1, 1);
@@ -148,13 +165,23 @@ int typing_mode() {
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     if (!shift) ch += 32; // 小文字化
                 }
+                
+                // InputRecorder: キーダウン記録
+                recorder.recordKeyDown(key, 0, ch);
+                
                 // line.size()の範囲内ならどこでも挿入可能
                 if (cursor.x < 0) cursor.x = 0;
                 if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
                 line.insert(cursor.x, 1, ch);
                 cursor.x++;
                 updated = true;
+                
+                // キーアップ待ち
                 while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
+                
+                // InputRecorder: キーアップ記録
+                recorder.recordKeyUp(key, 0);
+                
                 break;
             }
         }
