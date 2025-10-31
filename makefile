@@ -13,7 +13,7 @@ TARGET := main.exe
 SRCS := main.cpp 
 
 # Object files
-OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o
+OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o
 
 
 # Default target
@@ -38,3 +38,7 @@ $(TARGET): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 	rm -rf tmp
+
+# Tests
+romaji-test: tests/romaji_converter_test.cpp core/romaji_converter.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o romaji_converter_test.exe $^
