@@ -75,12 +75,30 @@ namespace Statistics {
         {}
     };
 
+    // かな入力データ（Phase 3-2）
+    struct KanaInputData {
+        std::string kana;              // 仮名文字（例: "し", "しゅ"）
+        std::string romaji;            // 対応するローマ字（例: "shi", "shu"）
+        uint64_t startTime;            // 先頭キーダウン（マイクロ秒）
+        uint64_t endTime;              // 最後のキーアップ（マイクロ秒）
+        uint64_t duration;             // 所要時間（マイクロ秒）
+        
+        KanaInputData(const std::string& k, const std::string& r, 
+                      uint64_t start, uint64_t end)
+            : kana(k), romaji(r), startTime(start), endTime(end)
+            , duration(end - start)
+        {}
+    };
+
     // 統計計算クラス
     class Calculator {
     private:
         std::vector<KeyEvent> events_;
         uint64_t sessionStartTime_;
         uint64_t sessionEndTime_;
+        
+        // Phase 3-2: 50音別入力時間
+        std::vector<KanaInputData> kanaInputs_;
         
     public:
         Calculator();
@@ -93,6 +111,13 @@ namespace Statistics {
         void recordKeyDown(uint64_t timestamp, int virtualKey, char character);
         void recordKeyUp(uint64_t timestamp, int virtualKey);
         void recordBackspace(uint64_t timestamp);
+        
+        // Phase 3-2: かな入力記録
+        void recordKanaInput(const std::string& kana, const std::string& romaji,
+                             uint64_t startTime, uint64_t endTime);
+        
+        // Phase 3-2: 50音別平均入力時間取得
+        std::map<std::string, double> getAvgKanaInputTime() const;
         
         // 統計計算（judgeResultを使用）
         StatisticsData calculate(size_t correctCount, size_t incorrectCount);

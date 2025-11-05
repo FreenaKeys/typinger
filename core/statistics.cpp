@@ -70,11 +70,15 @@ namespace Statistics {
         // キー押下時間計算
         calculateKeyPressDuration(data);
         
+        // Phase 3-2: 50音別入力時間の計算
+        data.kanaInputTime = getAvgKanaInputTime();
+        
         return data;
     }
 
     void Calculator::reset() {
         events_.clear();
+        kanaInputs_.clear();  // Phase 3-2
         sessionStartTime_ = 0;
         sessionEndTime_ = 0;
     }
@@ -191,6 +195,34 @@ namespace Statistics {
                 data.avgKeyPressDuration[ch] = sum / static_cast<double>(durations.size());
             }
         }
+    }
+
+    // Phase 3-2: かな別入力時間の記録
+    void Calculator::recordKanaInput(const std::string& kana, const std::string& romaji,
+                                      uint64_t startTime, uint64_t endTime) {
+        kanaInputs_.emplace_back(kana, romaji, startTime, endTime);
+    }
+
+    // Phase 3-2: かな別平均入力時間の計算
+    std::map<std::string, double> Calculator::getAvgKanaInputTime() const {
+        std::map<std::string, std::vector<uint64_t>> kanaDurations;
+        
+        // かなごとに入力時間を集計
+        for (const auto& kanaInput : kanaInputs_) {
+            kanaDurations[kanaInput.kana].push_back(kanaInput.duration);
+        }
+        
+        // 各かなの平均を計算（ミリ秒単位）
+        std::map<std::string, double> avgTimes;
+        for (const auto& pair : kanaDurations) {
+            uint64_t sum = 0;
+            for (uint64_t duration : pair.second) {
+                sum += duration;
+            }
+            avgTimes[pair.first] = sum / static_cast<double>(pair.second.size()) / 1000.0;  // μs -> ms
+        }
+        
+        return avgTimes;
     }
 
 } // namespace Statistics

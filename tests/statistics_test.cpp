@@ -233,6 +233,91 @@ void test_reset() {
     std::cout << "  PASS" << std::endl;
 }
 
+// Phase 3-2: 単一キーのかな入力テスト（例: "あ" -> "a"）
+void test_kana_single_input() {
+    std::cout << "Test: Kana single key input... ";
+    
+    Calculator calc;
+    calc.startSession(0);
+    
+    // "あ" を "a" で入力（100ms）
+    calc.recordKanaInput("あ", "a", 0, 100000);
+    
+    calc.endSession(200000);
+    
+    StatisticsData data = calc.calculate(1, 0);
+    
+    // かな別入力時間を確認
+    assert(data.kanaInputTime.count("あ") == 1);
+    assert(std::abs(data.kanaInputTime.at("あ") - 100.0) < 0.01);  // 100ms
+    
+    std::cout << "  PASS" << std::endl;
+}
+
+// Phase 3-2: 複数キーのかな入力テスト（例: "しゅ" -> "syu"）
+void test_kana_multiple_keys() {
+    std::cout << "Test: Kana multiple keys input... ";
+    
+    Calculator calc;
+    calc.startSession(0);
+    
+    // "し" を "shi" で入力（300ms）
+    calc.recordKanaInput("し", "shi", 0, 300000);
+    
+    // "しゅ" を "syu" で入力（350ms）
+    calc.recordKanaInput("しゅ", "syu", 500000, 850000);
+    
+    // "ん" を "n" で入力（50ms）
+    calc.recordKanaInput("ん", "n", 1000000, 1050000);
+    
+    calc.endSession(1100000);
+    
+    StatisticsData data = calc.calculate(3, 0);
+    
+    // 各かなの入力時間を確認
+    assert(data.kanaInputTime.count("し") == 1);
+    assert(std::abs(data.kanaInputTime.at("し") - 300.0) < 0.01);  // 300ms
+    
+    assert(data.kanaInputTime.count("しゅ") == 1);
+    assert(std::abs(data.kanaInputTime.at("しゅ") - 350.0) < 0.01);  // 350ms
+    
+    assert(data.kanaInputTime.count("ん") == 1);
+    assert(std::abs(data.kanaInputTime.at("ん") - 50.0) < 0.01);  // 50ms
+    
+    std::cout << "  PASS" << std::endl;
+}
+
+// Phase 3-2: 同一かなの複数回入力と平均計算テスト
+void test_kana_averaging() {
+    std::cout << "Test: Kana input averaging... ";
+    
+    Calculator calc;
+    calc.startSession(0);
+    
+    // "し" を3回入力（100ms, 200ms, 300ms）
+    calc.recordKanaInput("し", "shi", 0, 100000);
+    calc.recordKanaInput("し", "shi", 200000, 400000);
+    calc.recordKanaInput("し", "shi", 500000, 800000);
+    
+    // "か" を2回入力（150ms, 250ms）
+    calc.recordKanaInput("か", "ka", 900000, 1050000);
+    calc.recordKanaInput("か", "ka", 1100000, 1350000);
+    
+    calc.endSession(1500000);
+    
+    StatisticsData data = calc.calculate(5, 0);
+    
+    // "し" の平均: (100 + 200 + 300) / 3 = 200ms
+    assert(data.kanaInputTime.count("し") == 1);
+    assert(std::abs(data.kanaInputTime.at("し") - 200.0) < 0.01);
+    
+    // "か" の平均: (150 + 250) / 2 = 200ms
+    assert(data.kanaInputTime.count("か") == 1);
+    assert(std::abs(data.kanaInputTime.at("か") - 200.0) < 0.01);
+    
+    std::cout << "  PASS" << std::endl;
+}
+
 int main() {
     std::cout << "=== Statistics Calculator Unit Tests ===" << std::endl;
     std::cout << std::endl;
@@ -246,6 +331,11 @@ int main() {
     test_backspace_count();
     test_empty_data();
     test_reset();
+    
+    // Phase 3-2: 50音別入力時間テスト
+    test_kana_single_input();
+    test_kana_multiple_keys();
+    test_kana_averaging();
     
     std::cout << std::endl;
     std::cout << "All tests passed! ✓" << std::endl;
