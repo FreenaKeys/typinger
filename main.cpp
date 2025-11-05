@@ -4,6 +4,7 @@
 #include "helper/WinAPI/terminal.h"
 #include "helper/json_helper.h"
 #include "core/input_recorder.h"
+#include "core/typing_judge.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -62,6 +63,30 @@ int typing_mode() {
     // ターミナルサイズ取得
     auto size = Terminal::getTerminalSize();
     
+    // Phase 2-3: scenarioファイルからtext/rubiを読み込み
+    std::string scenarioPath = "scenario/scenarioexample.json";
+    auto scenarioData = JsonHelper::loadJsonFromFile(scenarioPath);
+    
+    // 最初のエントリ（"1"）を取得
+    std::string targetText = "こんにちは";  // デフォルト
+    std::string targetRubi = "konnichiha";  // デフォルト
+    
+    if (scenarioData.isObject() && scenarioData["entries"].isObject()) {
+        auto entries = scenarioData["entries"];
+        if (entries["1"].isObject()) {
+            auto entry = entries["1"];
+            if (entry["text"].isString()) {
+                targetText = entry["text"].asString();
+            }
+            if (entry["rubi"].isString()) {
+                targetRubi = entry["rubi"].asString();
+            }
+        }
+    }
+    
+    // Phase 2-2: タイピング判定クラスの初期化
+    TypingJudge::Judge judge(targetText, targetRubi);
+    
     Cursor cursor;
     std::string line;
     // 複数行バッファ
@@ -72,6 +97,9 @@ int typing_mode() {
     // InputRecorder統合（フェーズ1-3）
     InputRecorder::Recorder recorder;
     recorder.startSession();
+    
+    // Phase 2-3: 目標テキストとルビを表示
+    Terminal::overwriteString(0, 4, "Target: " + targetText + " [" + targetRubi + "]");
 
     while (true) {
         bool updated = false;
@@ -169,6 +197,40 @@ int typing_mode() {
                 // InputRecorder: キーダウン記録
                 recorder.recordKeyDown(key, 0, ch);
                 
+                // Phase 2-3: タイピング判定
+                auto result = judge.judgeChar(ch);
+                
+                // 判定結果を画面に表示（デバッグ用）
+                std::string resultStr;
+                if (result == TypingJudge::JudgeResult::CORRECT) {
+                    resultStr = "CORRECT";
+                } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                    resultStr = "INCORRECT";
+                } else {
+                    resultStr = "ALREADY_DONE";
+                }
+                Terminal::overwriteString(0, 5, "Result: " + resultStr + " | Progress: " + 
+                    std::to_string(judge.getCurrentPosition()) + "/" + std::to_string(judge.getTargetLength()) +
+                    " | Remaining: [" + judge.getRemainingRubi() + "]");
+                
+                // Phase 2-3: 完了判定（自動終了）
+                if (judge.isCompleted()) {
+                    // セッション終了
+                    recorder.endSession();
+                    
+                    // 完了メッセージ表示
+                    Terminal::overwriteString(0, size.height - 3, 
+                        "*** COMPLETED! *** Accuracy: " + 
+                        std::to_string(static_cast<int>(judge.getAccuracy() * 100)) + 
+                        "% | Total: " + std::to_string(judge.getCorrectCount() + judge.getIncorrectCount()) +
+                        " keys");
+                    Sleep(3000);  // 3秒表示
+                    
+                    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                    FlushConsoleInputBuffer(hStdin);
+                    return 0;
+                }
+                
                 // line.size()の範囲内ならどこでも挿入可能
                 if (cursor.x < 0) cursor.x = 0;
                 if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
@@ -184,6 +246,63 @@ int typing_mode() {
                 
                 break;
             }
+        }
+        
+        // Phase 2-3: ハイフンキーの処理 (VK_OEM_MINUS = 0xBD)
+        if (GetAsyncKeyState(0xBD) & 0x8000) {
+            auto& line = lines[cursor.y];
+            bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            char ch = shift ? '_' : '-';
+            
+            // InputRecorder: キーダウン記録
+            recorder.recordKeyDown(0xBD, 0, ch);
+            
+            // Phase 2-3: タイピング判定
+            auto result = judge.judgeChar(ch);
+            
+            // 判定結果を画面に表示
+            std::string resultStr;
+            if (result == TypingJudge::JudgeResult::CORRECT) {
+                resultStr = "CORRECT";
+            } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                resultStr = "INCORRECT";
+            } else {
+                resultStr = "ALREADY_DONE";
+            }
+            Terminal::overwriteString(0, 5, "Result: " + resultStr + " | Progress: " + 
+                std::to_string(judge.getCurrentPosition()) + "/" + std::to_string(judge.getTargetLength()) +
+                " | Remaining: [" + judge.getRemainingRubi() + "]");
+            
+            // Phase 2-3: 完了判定（自動終了）
+            if (judge.isCompleted()) {
+                // セッション終了
+                recorder.endSession();
+                
+                // 完了メッセージ表示
+                Terminal::overwriteString(0, size.height - 3, 
+                    "*** COMPLETED! *** Accuracy: " + 
+                    std::to_string(static_cast<int>(judge.getAccuracy() * 100)) + 
+                    "% | Total: " + std::to_string(judge.getCorrectCount() + judge.getIncorrectCount()) +
+                    " keys");
+                Sleep(3000);  // 3秒表示
+                
+                HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                FlushConsoleInputBuffer(hStdin);
+                return 0;
+            }
+            
+            // line.size()の範囲内ならどこでも挿入可能
+            if (cursor.x < 0) cursor.x = 0;
+            if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
+            line.insert(cursor.x, 1, ch);
+            cursor.x++;
+            updated = true;
+            
+            // キーアップ待ち
+            while (GetAsyncKeyState(0xBD) & 0x8000) Sleep(1);
+            
+            // InputRecorder: キーアップ記録
+            recorder.recordKeyUp(0xBD, 0);
         }
 
         // 入力があった時だけ描画
