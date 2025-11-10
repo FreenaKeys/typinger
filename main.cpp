@@ -2,10 +2,16 @@
 #include <string>
 #include <windows.h>
 #include "helper/WinAPI/terminal.h"
+#include "helper/WinAPI/timer.h"
 #include "helper/json_helper.h"
+#include "core/input_recorder.h"
+#include "core/typing_judge.h"
+#include "core/statistics.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 
 namespace fs = std::filesystem;
 struct Cursor {
@@ -61,6 +67,30 @@ int typing_mode() {
     // ターミナルサイズ取得
     auto size = Terminal::getTerminalSize();
     
+    // Phase 2-3: scenarioファイルからtext/rubiを読み込み
+    std::string scenarioPath = "scenario/scenarioexample.json";
+    auto scenarioData = JsonHelper::loadJsonFromFile(scenarioPath);
+    
+    // 最初のエントリ（"1"）を取得
+    std::string targetText = "こんにちは";  // デフォルト
+    std::string targetRubi = "konnichiha";  // デフォルト
+    
+    if (scenarioData.isObject() && scenarioData["entries"].isObject()) {
+        auto entries = scenarioData["entries"];
+        if (entries["1"].isObject()) {
+            auto entry = entries["1"];
+            if (entry["text"].isString()) {
+                targetText = entry["text"].asString();
+            }
+            if (entry["rubi"].isString()) {
+                targetRubi = entry["rubi"].asString();
+            }
+        }
+    }
+    
+    // Phase 2-2: タイピング判定クラスの初期化
+    TypingJudge::Judge judge(targetText, targetRubi);
+    
     Cursor cursor;
     std::string line;
     // 複数行バッファ
@@ -68,12 +98,65 @@ int typing_mode() {
     cursor.x = 0;
     cursor.y = 6; // 入力開始行
 
+    // InputRecorder統合（フェーズ1-3）
+    InputRecorder::Recorder recorder;
+    recorder.startSession();
+    
+    // Phase 3-3: Statistics統合
+    Statistics::Calculator statsCalc;
+    uint64_t startTime = WinTimer::now_us();
+    statsCalc.startSession(startTime);
+    
+    // Phase 2-3: 目標テキストとルビを表示
+    Terminal::overwriteString(0, 4, "Target: " + targetText + " [" + targetRubi + "]");
+
     while (true) {
         bool updated = false;
 
 
         // Escで終了
         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            // InputRecorder: セッション終了
+            recorder.endSession();
+            
+            // Phase 3-3: 統計計算（途中終了でも表示）
+            uint64_t endTime = WinTimer::now_us();
+            statsCalc.endSession(endTime);
+            
+            const auto& events = recorder.getEvents();
+            for (const auto& event : events) {
+                if (event.type == InputRecorder::EventType::KEY_DOWN) {
+                    statsCalc.recordKeyDown(event.timestamp_us, event.vk_code, event.character);
+                } else if (event.type == InputRecorder::EventType::KEY_UP) {
+                    statsCalc.recordKeyUp(event.timestamp_us, event.vk_code);
+                } else if (event.type == InputRecorder::EventType::BACKSPACE) {
+                    statsCalc.recordBackspace(event.timestamp_us);
+                }
+            }
+            
+            auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
+            double accuracy = (stats.correctKeyCount + stats.incorrectKeyCount > 0) 
+                ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
+                : 0.0;
+            
+            // 統計情報の表示
+            Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics (Interrupted) ===");
+            Terminal::overwriteString(0, size.height - 9, 
+                "Accuracy: " + std::to_string(static_cast<int>(accuracy * 100)) + "%" +
+                " | Correct: " + std::to_string(stats.correctKeyCount) +
+                " | Incorrect: " + std::to_string(stats.incorrectKeyCount));
+            Terminal::overwriteString(0, size.height - 8, 
+                "WPM: " + std::to_string(static_cast<int>(stats.wpmCorrect)) +
+                " | CPM: " + std::to_string(static_cast<int>(stats.cpmCorrect)));
+            Terminal::overwriteString(0, size.height - 7, 
+                "Avg Inter-key: " + std::to_string(static_cast<int>(stats.avgInterKeyInterval)) + " ms");
+            Terminal::overwriteString(0, size.height - 6, 
+                "Backspaces: " + std::to_string(stats.backspaceCount));
+            Terminal::overwriteString(0, size.height - 3, 
+                "Session ended. Events: " + std::to_string(recorder.getEventCount()) + 
+                " | Duration: " + std::to_string(stats.totalDuration / 1000) + " ms");
+            Sleep(3000);  // 3秒表示
+            
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
             FlushConsoleInputBuffer(hStdin);
             return 0;
@@ -83,6 +166,7 @@ int typing_mode() {
 
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
+            recorder.recordBackspace();  // Backspace記録
             auto& line = lines[cursor.y];
             if (cursor.x > 0 && cursor.x <= (int)line.size()) {
                 line.erase(cursor.x - 1, 1);
@@ -148,15 +232,212 @@ int typing_mode() {
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     if (!shift) ch += 32; // 小文字化
                 }
+                
+                // InputRecorder: キーダウン記録
+                recorder.recordKeyDown(key, 0, ch);
+                
+                // Phase 2-3: タイピング判定
+                auto result = judge.judgeChar(ch);
+                
+                // Phase 3-3: 統計データ記録
+                recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+                
+                // 判定結果を画面に表示（デバッグ用）
+                std::string resultStr;
+                if (result == TypingJudge::JudgeResult::CORRECT) {
+                    resultStr = "CORRECT";
+                } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                    resultStr = "INCORRECT";
+                } else {
+                    resultStr = "ALREADY_DONE";
+                }
+                Terminal::overwriteString(0, 5, "Result: " + resultStr + " | Progress: " + 
+                    std::to_string(judge.getCurrentPosition()) + "/" + std::to_string(judge.getTargetLength()) +
+                    " | Remaining: [" + judge.getRemainingRubi() + "]");
+                
+                // Phase 2-3: 完了判定（自動終了）
+                if (judge.isCompleted()) {
+                    // セッション終了
+                    recorder.endSession();
+                    
+                    // Phase 3-3: 統計計算
+                    uint64_t endTime = WinTimer::now_us();
+                    statsCalc.endSession(endTime);
+                    
+                    const auto& events = recorder.getEvents();
+                    for (const auto& event : events) {
+                        if (event.type == InputRecorder::EventType::KEY_DOWN) {
+                            statsCalc.recordKeyDown(event.timestamp_us, event.vk_code, event.character);
+                        } else if (event.type == InputRecorder::EventType::KEY_UP) {
+                            statsCalc.recordKeyUp(event.timestamp_us, event.vk_code);
+                        } else if (event.type == InputRecorder::EventType::BACKSPACE) {
+                            statsCalc.recordBackspace(event.timestamp_us);
+                        }
+                    }
+                    
+                    auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
+                    double accuracy = (stats.correctKeyCount + stats.incorrectKeyCount > 0) 
+                        ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
+                        : 0.0;
+                    
+                    // 統計情報の表示
+                    Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics ===");
+                    Terminal::overwriteString(0, size.height - 9, 
+                        "Accuracy: " + std::to_string(static_cast<int>(accuracy * 100)) + "%" +
+                        " | Correct: " + std::to_string(stats.correctKeyCount) +
+                        " | Incorrect: " + std::to_string(stats.incorrectKeyCount));
+                    Terminal::overwriteString(0, size.height - 8, 
+                        "WPM: " + std::to_string(static_cast<int>(stats.wpmCorrect)) +
+                        " | CPM: " + std::to_string(static_cast<int>(stats.cpmCorrect)));
+                    Terminal::overwriteString(0, size.height - 7, 
+                        "Avg Inter-key: " + std::to_string(static_cast<int>(stats.avgInterKeyInterval)) + " ms");
+                    Terminal::overwriteString(0, size.height - 6, 
+                        "Backspaces: " + std::to_string(stats.backspaceCount));
+                    
+                    // かな別入力時間の表示（上位5件）
+                    int displayLine = size.height - 5;
+                    Terminal::overwriteString(0, displayLine++, "Top 5 Kana Input Times:");
+                    int count = 0;
+                    for (const auto& [kana, time] : stats.kanaInputTime) {
+                        if (count >= 5) break;
+                        std::ostringstream oss;
+                        oss << "  " << kana << ": " << std::fixed << std::setprecision(0) << time << " ms";
+                        Terminal::overwriteString(0, displayLine++, oss.str());
+                        count++;
+                    }
+                    
+                    Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
+                    
+                    // ESCキー待ち
+                    while (!(GetAsyncKeyState(VK_ESCAPE) & 0x8000)) {
+                        Sleep(100);
+                    }
+                    
+                    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                    FlushConsoleInputBuffer(hStdin);
+                    return 0;
+                }
+                
                 // line.size()の範囲内ならどこでも挿入可能
                 if (cursor.x < 0) cursor.x = 0;
                 if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
                 line.insert(cursor.x, 1, ch);
                 cursor.x++;
                 updated = true;
+                
+                // キーアップ待ち
                 while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
+                
+                // InputRecorder: キーアップ記録
+                recorder.recordKeyUp(key, 0);
+                
                 break;
             }
+        }
+        
+        // Phase 2-3: ハイフンキーの処理 (VK_OEM_MINUS = 0xBD)
+        if (GetAsyncKeyState(0xBD) & 0x8000) {
+            auto& line = lines[cursor.y];
+            bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            char ch = shift ? '_' : '-';
+            
+            // InputRecorder: キーダウン記録
+            recorder.recordKeyDown(0xBD, 0, ch);
+            
+            // Phase 2-3: タイピング判定
+            auto result = judge.judgeChar(ch);
+            
+            // Phase 3-3: 統計データ記録
+            recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+            
+            // 判定結果を画面に表示
+            std::string resultStr;
+            if (result == TypingJudge::JudgeResult::CORRECT) {
+                resultStr = "CORRECT";
+            } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                resultStr = "INCORRECT";
+            } else {
+                resultStr = "ALREADY_DONE";
+            }
+            Terminal::overwriteString(0, 5, "Result: " + resultStr + " | Progress: " + 
+                std::to_string(judge.getCurrentPosition()) + "/" + std::to_string(judge.getTargetLength()) +
+                " | Remaining: [" + judge.getRemainingRubi() + "]");
+            
+            // Phase 2-3: 完了判定（自動終了）
+            if (judge.isCompleted()) {
+                // セッション終了
+                recorder.endSession();
+                
+                // Phase 3-3: 統計計算
+                uint64_t endTime = WinTimer::now_us();
+                statsCalc.endSession(endTime);
+                
+                const auto& events = recorder.getEvents();
+                for (const auto& event : events) {
+                    if (event.type == InputRecorder::EventType::KEY_DOWN) {
+                        statsCalc.recordKeyDown(event.timestamp_us, event.vk_code, event.character);
+                    } else if (event.type == InputRecorder::EventType::KEY_UP) {
+                        statsCalc.recordKeyUp(event.timestamp_us, event.vk_code);
+                    } else if (event.type == InputRecorder::EventType::BACKSPACE) {
+                        statsCalc.recordBackspace(event.timestamp_us);
+                    }
+                }
+                
+                auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
+                double accuracy = (stats.correctKeyCount + stats.incorrectKeyCount > 0) 
+                    ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
+                    : 0.0;
+                
+                // 統計情報の表示
+                Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics ===");
+                Terminal::overwriteString(0, size.height - 9, 
+                    "Accuracy: " + std::to_string(static_cast<int>(accuracy * 100)) + "%" +
+                    " | Correct: " + std::to_string(stats.correctKeyCount) +
+                    " | Incorrect: " + std::to_string(stats.incorrectKeyCount));
+                Terminal::overwriteString(0, size.height - 8, 
+                    "WPM: " + std::to_string(static_cast<int>(stats.wpmCorrect)) +
+                    " | CPM: " + std::to_string(static_cast<int>(stats.cpmCorrect)));
+                Terminal::overwriteString(0, size.height - 7, 
+                    "Avg Inter-key: " + std::to_string(static_cast<int>(stats.avgInterKeyInterval)) + " ms");
+                Terminal::overwriteString(0, size.height - 6, 
+                    "Backspaces: " + std::to_string(stats.backspaceCount));
+                
+                // かな別入力時間の表示（上位5件）
+                int displayLine = size.height - 5;
+                Terminal::overwriteString(0, displayLine++, "Top 5 Kana Input Times:");
+                int count = 0;
+                for (const auto& [kana, time] : stats.kanaInputTime) {
+                    if (count >= 5) break;
+                    std::ostringstream oss;
+                    oss << "  " << kana << ": " << std::fixed << std::setprecision(0) << time << " ms";
+                    Terminal::overwriteString(0, displayLine++, oss.str());
+                    count++;
+                }
+                
+                Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
+                
+                // ESCキー待ち
+                while (!(GetAsyncKeyState(VK_ESCAPE) & 0x8000)) {
+                    Sleep(100);
+                }
+                
+                HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                FlushConsoleInputBuffer(hStdin);
+                return 0;
+            }
+            
+            // line.size()の範囲内ならどこでも挿入可能
+            if (cursor.x < 0) cursor.x = 0;
+            if (cursor.x > (int)line.size()) cursor.x = (int)line.size();
+            line.insert(cursor.x, 1, ch);
+            cursor.x++;
+            updated = true;
+            
+            // キーアップ待ち
+            while (GetAsyncKeyState(0xBD) & 0x8000) Sleep(1);
+            
+            // InputRecorder: キーアップ記録
+            recorder.recordKeyUp(0xBD, 0);
         }
 
         // 入力があった時だけ描画

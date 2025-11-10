@@ -6,4 +6,12 @@ main.exe
 main.o
 main.exe
 helper/WinAPI/terminal.o
+helper/WinAPI/timer.o
+helper/json_helper.o
+core/*.o
+tests/*.o
+timer_test.exe
+input_recorder_test.exe
+romaji_converter_test.exe
 .vscode/c_cpp_properties.json
+tmp/
