@@ -8,6 +8,7 @@
 #include "core/typing_judge.h"
 #include "core/romaji_converter.h"
 #include "core/statistics.h"
+#include "core/csv_logger.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -148,6 +149,9 @@ int typing_mode() {
                 ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                 : 0.0;
             
+            // Phase 4-1: イベントCSV出力
+            std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+            
             // 画面クリア（統計情報表示エリア）
             for (int y = 0; y < size.height; ++y) {
                 Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
@@ -166,9 +170,15 @@ int typing_mode() {
                 "Avg Inter-key: " + std::to_string(static_cast<int>(stats.avgInterKeyInterval)) + " ms");
             Terminal::overwriteString(0, size.height - 6, 
                 "Backspaces: " + std::to_string(stats.backspaceCount));
-            Terminal::overwriteString(0, size.height - 3, 
+            Terminal::overwriteString(0, size.height - 4, 
                 "Session ended. Events: " + std::to_string(recorder.getEventCount()) + 
                 " | Duration: " + std::to_string(stats.totalDuration / 1000) + " ms");
+            
+            // Phase 4-1: CSV出力結果を表示
+            if (!csvPath.empty()) {
+                Terminal::overwriteString(0, size.height - 3, "Event CSV saved: " + csvPath);
+            }
+            
             Sleep(3000);  // 3秒表示
             
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -337,6 +347,9 @@ int typing_mode() {
                         ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                         : 0.0;
                     
+                    // Phase 4-1: イベントCSV出力
+                    std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                    
                     // 画面クリア（統計情報表示エリア）
                     for (int y = 0; y < size.height; ++y) {
                         Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
@@ -369,6 +382,11 @@ int typing_mode() {
                     }
                     
                     Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
+                    
+                    // Phase 4-1: CSV出力結果を表示
+                    if (!csvPath.empty()) {
+                        Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                    }
                     
                     // バッファクリア（ESC待機前）
                     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -502,6 +520,9 @@ int typing_mode() {
                     ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                     : 0.0;
                 
+                // Phase 4-1: イベントCSV出力
+                std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                
                 // 画面クリア（統計情報表示エリア）
                 for (int y = 0; y < size.height; ++y) {
                     Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
@@ -534,6 +555,11 @@ int typing_mode() {
                 }
                 
                 Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
+                
+                // Phase 4-1: CSV出力結果を表示
+                if (!csvPath.empty()) {
+                    Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                }
                 
                 // バッファクリア（ESC待機前）
                 HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
