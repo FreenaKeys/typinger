@@ -149,8 +149,9 @@ int typing_mode() {
                 ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                 : 0.0;
             
-            // Phase 4-1: イベントCSV出力
-            std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+            // Phase 4: CSV出力（イベント + サマリ）
+            std::string eventCsvPath = CSVLogger::writeEventCSV(recorder, "output");
+            std::string summaryCsvPath = CSVLogger::writeSummaryCSV(stats, "output");
             
             // 画面クリア（統計情報表示エリア）
             for (int y = 0; y < size.height; ++y) {
@@ -174,9 +175,12 @@ int typing_mode() {
                 "Session ended. Events: " + std::to_string(recorder.getEventCount()) + 
                 " | Duration: " + std::to_string(stats.totalDuration / 1000) + " ms");
             
-            // Phase 4-1: CSV出力結果を表示
-            if (!csvPath.empty()) {
-                Terminal::overwriteString(0, size.height - 3, "Event CSV saved: " + csvPath);
+            // Phase 4: CSV出力結果を表示
+            if (!eventCsvPath.empty()) {
+                Terminal::overwriteString(0, size.height - 3, "Event CSV saved: " + eventCsvPath);
+            }
+            if (!summaryCsvPath.empty()) {
+                Terminal::overwriteString(0, size.height - 2, "Summary CSV saved: " + summaryCsvPath);
             }
             
             Sleep(3000);  // 3秒表示
@@ -347,8 +351,9 @@ int typing_mode() {
                         ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                         : 0.0;
                     
-                    // Phase 4-1: イベントCSV出力
-                    std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                    // Phase 4: CSV出力（イベント + サマリ）
+                    std::string eventCsvPath = CSVLogger::writeEventCSV(recorder, "output");
+                    std::string summaryCsvPath = CSVLogger::writeSummaryCSV(stats, "output");
                     
                     // 画面クリア（統計情報表示エリア）
                     for (int y = 0; y < size.height; ++y) {
@@ -383,9 +388,12 @@ int typing_mode() {
                     
                     Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
                     
-                    // Phase 4-1: CSV出力結果を表示
-                    if (!csvPath.empty()) {
-                        Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                    // Phase 4: CSV出力結果を表示
+                    if (!eventCsvPath.empty()) {
+                        Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + eventCsvPath);
+                    }
+                    if (!summaryCsvPath.empty()) {
+                        Terminal::overwriteString(0, size.height - 1, "Summary CSV saved: " + summaryCsvPath);
                     }
                     
                     // バッファクリア（ESC待機前）
@@ -520,8 +528,9 @@ int typing_mode() {
                     ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                     : 0.0;
                 
-                // Phase 4-1: イベントCSV出力
-                std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                // Phase 4: CSV出力（イベント + サマリ）
+                std::string eventCsvPath = CSVLogger::writeEventCSV(recorder, "output");
+                std::string summaryCsvPath = CSVLogger::writeSummaryCSV(stats, "output");
                 
                 // 画面クリア（統計情報表示エリア）
                 for (int y = 0; y < size.height; ++y) {
@@ -556,9 +565,12 @@ int typing_mode() {
                 
                 Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
                 
-                // Phase 4-1: CSV出力結果を表示
-                if (!csvPath.empty()) {
-                    Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                // Phase 4: CSV出力結果を表示
+                if (!eventCsvPath.empty()) {
+                    Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + eventCsvPath);
+                }
+                if (!summaryCsvPath.empty()) {
+                    Terminal::overwriteString(0, size.height - 1, "Summary CSV saved: " + summaryCsvPath);
                 }
                 
                 // バッファクリア（ESC待機前）
