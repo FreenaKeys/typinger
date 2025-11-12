@@ -98,11 +98,73 @@ namespace CSVLogger {
         return filepath;
     }
 
-    // サマリCSV出力（Phase 4-2で実装）
+    // サマリCSV出力
     std::string writeSummaryCSV(const Statistics::StatisticsData& stats,
                                 const std::string& outputDir) {
-        // Phase 4-2で実装
-        return "";
+        // 出力ディレクトリを作成
+        try {
+            fs::create_directories(outputDir);
+        } catch (const std::exception& e) {
+            return "";  // ディレクトリ作成失敗
+        }
+        
+        // ファイル名を生成
+        std::string filename = generateFilename("typing_summary");
+        std::string filepath = outputDir + "/" + filename;
+        
+        // CSVファイルを開く
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            return "";  // ファイルオープン失敗
+        }
+        
+        // ヘッダー行を書き込み
+        file << "metric,value,unit\n";
+        
+        // 基本情報
+        file << "total_duration," << stats.totalDuration << ",microseconds\n";
+        file << "total_duration_sec," << (stats.totalDuration / 1000000.0) << ",seconds\n";
+        file << "total_key_count," << stats.totalKeyCount << ",keys\n";
+        file << "correct_key_count," << stats.correctKeyCount << ",keys\n";
+        file << "incorrect_key_count," << stats.incorrectKeyCount << ",keys\n";
+        file << "backspace_count," << stats.backspaceCount << ",keys\n";
+        
+        // 正答率
+        double accuracy = (stats.totalKeyCount > 0) 
+            ? (static_cast<double>(stats.correctKeyCount) / stats.totalKeyCount * 100.0)
+            : 0.0;
+        file << "accuracy," << std::fixed << std::setprecision(2) << accuracy << ",percent\n";
+        
+        // WPM/CPM
+        file << "wpm_total," << std::fixed << std::setprecision(2) << stats.wpmTotal << ",words_per_minute\n";
+        file << "wpm_correct," << std::fixed << std::setprecision(2) << stats.wpmCorrect << ",words_per_minute\n";
+        file << "cpm_total," << std::fixed << std::setprecision(2) << stats.cpmTotal << ",chars_per_minute\n";
+        file << "cpm_correct," << std::fixed << std::setprecision(2) << stats.cpmCorrect << ",chars_per_minute\n";
+        
+        // キー間隔
+        file << "avg_inter_key_interval," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
+        file << "min_inter_key_interval," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
+        file << "max_inter_key_interval," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
+        
+        file.close();
+        
+        // かな別入力時間を別ファイルに出力
+        if (!stats.kanaInputTime.empty()) {
+            std::string kanaFilename = generateFilename("typing_kana");
+            std::string kanaFilepath = outputDir + "/" + kanaFilename;
+            
+            std::ofstream kanaFile(kanaFilepath);
+            if (kanaFile.is_open()) {
+                kanaFile << "kana,avg_input_time_ms\n";
+                for (const auto& pair : stats.kanaInputTime) {
+                    kanaFile << pair.first << "," 
+                            << std::fixed << std::setprecision(2) << pair.second << "\n";
+                }
+                kanaFile.close();
+            }
+        }
+        
+        return filepath;
     }
 
 } // namespace CSVLogger
