@@ -9,6 +9,7 @@
 #include "core/romaji_converter.h"
 #include "core/statistics.h"
 #include "core/csv_logger.h"
+#include "helper/WinAPI/windowmaker/windowmaker.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -743,6 +744,7 @@ std::string select_file(const fs::path& exeDir) {
 
 int main() {
     //初期化開始
+        showConfirmDialog("確認", "これは確認ダイアログのテストです。");
         // UTF-8 出力対応
         SetConsoleOutputCP(CP_UTF8);
         // ターミナルサイズ取得

@@ -18,3 +18,4 @@ tmp/
 helper/json_helper.o
 helper/WinAPI/terminal.o
 output/*.*
+helper/WinAPI/windowmaker/windowmaker.o
