@@ -13,7 +13,7 @@ TARGET := main.exe
 SRCS := main.cpp 
 
 # Object files
-OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o
+OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o core/csv_logger.o
 
 
 # Default target
@@ -48,3 +48,7 @@ romaji-test: tests/romaji_converter_test.cpp core/romaji_converter.o
 
 statistics-test: tests/statistics_test.cpp core/statistics.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o statistics_test.exe $^
+
+csv-logger-test: tests/csv_logger_test.cpp core/csv_logger.o core/input_recorder.o helper/WinAPI/timer.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o csv_logger_test.exe $^
+

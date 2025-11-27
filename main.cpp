@@ -6,7 +6,9 @@
 #include "helper/json_helper.h"
 #include "core/input_recorder.h"
 #include "core/typing_judge.h"
+#include "core/romaji_converter.h"
 #include "core/statistics.h"
+#include "core/csv_logger.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -107,6 +109,14 @@ int typing_mode() {
     uint64_t startTime = WinTimer::now_us();
     statsCalc.startSession(startTime);
     
+    // Phase 3-4: かな入力追跡用
+    RomajiConverter::Converter romajiConv;
+    std::string currentRomajiBuffer;  // 現在入力中のローマ字バッファ
+    uint64_t kanaStartTime = 0;       // かな入力開始時刻
+    
+    // Phase 3-4: キーリピート防止用（前回のキー状態を記録）
+    bool lastKeyStates[256] = {false};  // 全てのキーの前回の状態
+    
     // Phase 2-3: 目標テキストとルビを表示
     Terminal::overwriteString(0, 4, "Target: " + targetText + " [" + targetRubi + "]");
 
@@ -139,6 +149,14 @@ int typing_mode() {
                 ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                 : 0.0;
             
+            // Phase 4-1: イベントCSV出力
+            std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+            
+            // 画面クリア（統計情報表示エリア）
+            for (int y = 0; y < size.height; ++y) {
+                Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+            }
+            
             // 統計情報の表示
             Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics (Interrupted) ===");
             Terminal::overwriteString(0, size.height - 9, 
@@ -152,9 +170,15 @@ int typing_mode() {
                 "Avg Inter-key: " + std::to_string(static_cast<int>(stats.avgInterKeyInterval)) + " ms");
             Terminal::overwriteString(0, size.height - 6, 
                 "Backspaces: " + std::to_string(stats.backspaceCount));
-            Terminal::overwriteString(0, size.height - 3, 
+            Terminal::overwriteString(0, size.height - 4, 
                 "Session ended. Events: " + std::to_string(recorder.getEventCount()) + 
                 " | Duration: " + std::to_string(stats.totalDuration / 1000) + " ms");
+            
+            // Phase 4-1: CSV出力結果を表示
+            if (!csvPath.empty()) {
+                Terminal::overwriteString(0, size.height - 3, "Event CSV saved: " + csvPath);
+            }
+            
             Sleep(3000);  // 3秒表示
             
             HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -167,6 +191,11 @@ int typing_mode() {
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
             recorder.recordBackspace();  // Backspace記録
+            
+            // Phase 3-4: バックスペース時はかなバッファをクリア
+            currentRomajiBuffer.clear();
+            kanaStartTime = 0;
+            
             auto& line = lines[cursor.y];
             if (cursor.x > 0 && cursor.x <= (int)line.size()) {
                 line.erase(cursor.x - 1, 1);
@@ -225,7 +254,13 @@ int typing_mode() {
         // 文字入力（ASCII範囲のみ、特殊キー除外）
         for (int key = 32; key <= 126; ++key) {
             if (key == VK_LEFT || key == VK_RIGHT || key == VK_UP || key == VK_DOWN || key == VK_RETURN || key == VK_BACK) continue;
-            if (GetAsyncKeyState(key) & 0x8000) {
+            
+            bool keyPressed = (GetAsyncKeyState(key) & 0x8000) != 0;
+            
+            // Phase 3-4: キーが新しく押された場合のみ処理（リピート防止）
+            if (keyPressed && !lastKeyStates[key]) {
+                lastKeyStates[key] = true;
+                
                 auto& line = lines[cursor.y];
                 char ch = static_cast<char>(key);
                 if (ch >= 'A' && ch <= 'Z') {
@@ -236,11 +271,43 @@ int typing_mode() {
                 // InputRecorder: キーダウン記録
                 recorder.recordKeyDown(key, 0, ch);
                 
+                // Phase 3-4: かな入力追跡
+                uint64_t keyDownTime = WinTimer::now_us();
+                
                 // Phase 2-3: タイピング判定
                 auto result = judge.judgeChar(ch);
                 
                 // Phase 3-3: 統計データ記録
                 recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+                
+                // Phase 3-4: かな確定検知
+                if (result == TypingJudge::JudgeResult::CORRECT) {
+                    // バッファが空なら、かな入力開始
+                    if (currentRomajiBuffer.empty()) {
+                        kanaStartTime = keyDownTime;
+                    }
+                    
+                    // ローマ字バッファに追加
+                    currentRomajiBuffer += ch;
+                    
+                    // かな変換を試行
+                    auto convertResult = romajiConv.convert(currentRomajiBuffer);
+                    if (convertResult.status == RomajiConverter::ConvertStatus::MATCHED) {
+                        // かな確定！統計に記録
+                        uint64_t keyUpTime = WinTimer::now_us();
+                        statsCalc.recordKanaInput(convertResult.kana, currentRomajiBuffer, 
+                                                  kanaStartTime, keyUpTime);
+                        
+                        // バッファをクリア
+                        currentRomajiBuffer.clear();
+                        kanaStartTime = 0;
+                    }
+                    // PARTIAL（入力途中）の場合は何もせず、次の文字を待つ
+                } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                    // 誤入力時はバッファをクリア
+                    currentRomajiBuffer.clear();
+                    kanaStartTime = 0;
+                }
                 
                 // 判定結果を画面に表示（デバッグ用）
                 std::string resultStr;
@@ -280,6 +347,14 @@ int typing_mode() {
                         ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                         : 0.0;
                     
+                    // Phase 4-1: イベントCSV出力
+                    std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                    
+                    // 画面クリア（統計情報表示エリア）
+                    for (int y = 0; y < size.height; ++y) {
+                        Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+                    }
+                    
                     // 統計情報の表示
                     Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics ===");
                     Terminal::overwriteString(0, size.height - 9, 
@@ -308,12 +383,31 @@ int typing_mode() {
                     
                     Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
                     
+                    // Phase 4-1: CSV出力結果を表示
+                    if (!csvPath.empty()) {
+                        Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                    }
+                    
+                    // バッファクリア（ESC待機前）
+                    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                    FlushConsoleInputBuffer(hStdin);
+                    
                     // ESCキー待ち
                     while (!(GetAsyncKeyState(VK_ESCAPE) & 0x8000)) {
                         Sleep(100);
                     }
                     
-                    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                    // ESCキー待ち（キーが離されるまで）
+                    while (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+                        Sleep(10);
+                    }
+                    
+                    // Phase 3-4: 終了前に画面をクリア
+                    for (int y = 0; y < size.height; ++y) {
+                        Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+                    }
+                    Terminal::overwriteString(0, 0, "Thank you for using Typinger!");
+                    
                     FlushConsoleInputBuffer(hStdin);
                     return 0;
                 }
@@ -325,18 +419,24 @@ int typing_mode() {
                 cursor.x++;
                 updated = true;
                 
-                // キーアップ待ち
-                while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
-                
-                // InputRecorder: キーアップ記録
+                // Phase 3-4: キーアップ待ちを削除（高速入力対応）
+                // キーアップ記録は次のループで処理
                 recorder.recordKeyUp(key, 0);
                 
                 break;
+            } else if (!keyPressed && lastKeyStates[key]) {
+                // キーが離された
+                lastKeyStates[key] = false;
             }
         }
         
         // Phase 2-3: ハイフンキーの処理 (VK_OEM_MINUS = 0xBD)
-        if (GetAsyncKeyState(0xBD) & 0x8000) {
+        bool hyphenKeyPressed = (GetAsyncKeyState(0xBD) & 0x8000) != 0;
+        
+        // Phase 3-4: キーが新しく押された場合のみ処理（リピート防止）
+        if (hyphenKeyPressed && !lastKeyStates[0xBD]) {
+            lastKeyStates[0xBD] = true;
+            
             auto& line = lines[cursor.y];
             bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
             char ch = shift ? '_' : '-';
@@ -344,11 +444,43 @@ int typing_mode() {
             // InputRecorder: キーダウン記録
             recorder.recordKeyDown(0xBD, 0, ch);
             
+            // Phase 3-4: かな入力追跡
+            uint64_t keyDownTime = WinTimer::now_us();
+            
             // Phase 2-3: タイピング判定
             auto result = judge.judgeChar(ch);
             
             // Phase 3-3: 統計データ記録
             recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+            
+            // Phase 3-4: かな確定検知
+            if (result == TypingJudge::JudgeResult::CORRECT) {
+                // バッファが空なら、かな入力開始
+                if (currentRomajiBuffer.empty()) {
+                    kanaStartTime = keyDownTime;
+                }
+                
+                // ローマ字バッファに追加
+                currentRomajiBuffer += ch;
+                
+                // かな変換を試行
+                auto convertResult = romajiConv.convert(currentRomajiBuffer);
+                if (convertResult.status == RomajiConverter::ConvertStatus::MATCHED) {
+                    // かな確定！統計に記録
+                    uint64_t keyUpTime = WinTimer::now_us();
+                    statsCalc.recordKanaInput(convertResult.kana, currentRomajiBuffer, 
+                                              kanaStartTime, keyUpTime);
+                    
+                    // バッファをクリア
+                    currentRomajiBuffer.clear();
+                    kanaStartTime = 0;
+                }
+                // PARTIAL（入力途中）の場合は何もせず、次の文字を待つ
+            } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                // 誤入力時はバッファをクリア
+                currentRomajiBuffer.clear();
+                kanaStartTime = 0;
+            }
             
             // 判定結果を画面に表示
             std::string resultStr;
@@ -388,6 +520,14 @@ int typing_mode() {
                     ? static_cast<double>(stats.correctKeyCount) / (stats.correctKeyCount + stats.incorrectKeyCount) 
                     : 0.0;
                 
+                // Phase 4-1: イベントCSV出力
+                std::string csvPath = CSVLogger::writeEventCSV(recorder, "output");
+                
+                // 画面クリア（統計情報表示エリア）
+                for (int y = 0; y < size.height; ++y) {
+                    Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+                }
+                
                 // 統計情報の表示
                 Terminal::overwriteString(0, size.height - 10, "=== Typing Statistics ===");
                 Terminal::overwriteString(0, size.height - 9, 
@@ -416,12 +556,31 @@ int typing_mode() {
                 
                 Terminal::overwriteString(0, size.height - 3, "*** COMPLETED! *** Press ESC to exit...");
                 
+                // Phase 4-1: CSV出力結果を表示
+                if (!csvPath.empty()) {
+                    Terminal::overwriteString(0, size.height - 2, "Event CSV saved: " + csvPath);
+                }
+                
+                // バッファクリア（ESC待機前）
+                HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                FlushConsoleInputBuffer(hStdin);
+                
                 // ESCキー待ち
                 while (!(GetAsyncKeyState(VK_ESCAPE) & 0x8000)) {
                     Sleep(100);
                 }
                 
-                HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+                // ESCキー待ち（キーが離されるまで）
+                while (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+                    Sleep(10);
+                }
+                
+                // Phase 3-4: 終了前に画面をクリア
+                for (int y = 0; y < size.height; ++y) {
+                    Terminal::overwriteString(0, y, Terminal::Value_to_Blank(size.width, " "));
+                }
+                Terminal::overwriteString(0, 0, "Thank you for using Typinger!");
+                
                 FlushConsoleInputBuffer(hStdin);
                 return 0;
             }
@@ -433,11 +592,12 @@ int typing_mode() {
             cursor.x++;
             updated = true;
             
-            // キーアップ待ち
-            while (GetAsyncKeyState(0xBD) & 0x8000) Sleep(1);
-            
-            // InputRecorder: キーアップ記録
+            // Phase 3-4: キーアップ待ちを削除（高速入力対応）
+            // キーアップ記録は次のループで処理
             recorder.recordKeyUp(0xBD, 0);
+        } else if (!hyphenKeyPressed && lastKeyStates[0xBD]) {
+            // キーが離された
+            lastKeyStates[0xBD] = false;
         }
 
         // 入力があった時だけ描画
@@ -449,7 +609,7 @@ int typing_mode() {
             }
             Terminal::SetConsoleCursorPosition(cursor.x, cursor.y);
         }
-        Sleep(2);
+        Sleep(1);  // Phase 3-4: ポーリング頻度を上げて高速入力に対応
     }
 
     // 終了前にバッファクリア
