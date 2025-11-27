@@ -15,3 +15,6 @@ input_recorder_test.exe
 romaji_converter_test.exe
 .vscode/c_cpp_properties.json
 tmp/
+helper/json_helper.o
+helper/WinAPI/terminal.o
+output/*.*

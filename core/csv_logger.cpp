@@ -18,8 +18,8 @@ namespace CSVLogger {
         
         // ローカル時刻に変換
         std::tm tm;
-        localtime_s(&tm, &now_t);
-        
+        //localtime_s(&tm, &now_t);
+        localtime_r(&now_t, &tm); // POSIX互換
         // YYYYMMDD_HHMMSS形式でフォーマット
         std::ostringstream oss;
         oss << prefix << "_"
