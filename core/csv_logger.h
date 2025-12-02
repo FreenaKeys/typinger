@@ -57,4 +57,26 @@ namespace CSVLogger {
     // 戻り値: "prefix_YYYYMMDD_HHMMSS.csv"
     std::string generateFilename(const std::string& prefix);
 
+    // サマリCSV追記保存（実験データ付き - Phase 6で追加）
+    // stats: StatisticsDataインスタンス
+    // expData: 実験データ（被験者ID、セッション番号、配列タイプ等）
+    // outputDir: 出力ディレクトリ（デフォルト: "output"）
+    // 戻り値: 出力ファイルパス（失敗時は空文字列）
+    // 注意: 被験者IDごとに1つのCSVファイルに追記する
+    std::string appendSummaryCSV(const Statistics::StatisticsData& stats,
+                                 const ExperimentData& expData,
+                                 const std::string& outputDir = "output");
+
+    // 重複セッションチェック（Phase 6で追加）
+    // filepath: チェック対象のCSVファイルパス
+    // expData: 実験データ
+    // 戻り値: 重複している場合true、重複していない場合false
+    bool isDuplicateSession(const std::string& filepath,
+                           const ExperimentData& expData);
+
+    // 被験者IDから統合CSVファイル名を生成（Phase 6で追加）
+    // subjectId: 被験者ID（例: "SK"）
+    // 戻り値: "typing_summary_[ID].csv"（例: "typing_summary_SK.csv"）
+    std::string getConsolidatedFilename(const std::string& subjectId);
+
 } // namespace CSVLogger
