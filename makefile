@@ -64,3 +64,6 @@ csv-logger-append-test: tests/csv_logger_append_test.cpp core/csv_logger.o core/
 scenario-selector-test: tests/scenario_selector_test.cpp core/scenario_selector.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o scenario_selector_test.exe $^
 
+countdown-timer-test: tests/countdown_timer_test.cpp core/countdown_timer.o helper/WinAPI/timer.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o countdown_timer_test.exe $^
+
