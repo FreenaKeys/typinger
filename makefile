@@ -67,3 +67,6 @@ scenario-selector-test: tests/scenario_selector_test.cpp core/scenario_selector.
 countdown-timer-test: tests/countdown_timer_test.cpp core/countdown_timer.o helper/WinAPI/timer.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o countdown_timer_test.exe $^
 
+test-loop-controller-test: tests/test_loop_controller_test.cpp core/test_loop_controller.o core/experiment_session.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o test_loop_controller_test.exe $^
+
