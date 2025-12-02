@@ -52,3 +52,6 @@ statistics-test: tests/statistics_test.cpp core/statistics.o
 csv-logger-test: tests/csv_logger_test.cpp core/csv_logger.o core/input_recorder.o helper/WinAPI/timer.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o csv_logger_test.exe $^
 
+experiment-session-test: tests/experiment_session_test.cpp core/experiment_session.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o experiment_session_test.exe $^
+
