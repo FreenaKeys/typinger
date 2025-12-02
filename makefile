@@ -55,3 +55,6 @@ csv-logger-test: tests/csv_logger_test.cpp core/csv_logger.o core/input_recorder
 experiment-session-test: tests/experiment_session_test.cpp core/experiment_session.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o experiment_session_test.exe $^
 
+csv-logger-experiment-test: tests/csv_logger_experiment_test.cpp core/csv_logger.o core/statistics.o core/input_recorder.o helper/WinAPI/timer.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o csv_logger_experiment_test.exe $^
+

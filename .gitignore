@@ -14,6 +14,7 @@ timer_test.exe
 input_recorder_test.exe
 romaji_converter_test.exe
 experiment_session_test.exe
+csv_logger_experiment_test.exe
 typing_judge_test.exe
 romaji_converter_test.exe
 statistics_test.exe
