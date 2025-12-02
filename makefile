@@ -61,3 +61,6 @@ csv-logger-experiment-test: tests/csv_logger_experiment_test.cpp core/csv_logger
 csv-logger-append-test: tests/csv_logger_append_test.cpp core/csv_logger.o core/statistics.o core/input_recorder.o helper/WinAPI/timer.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o csv_logger_append_test.exe $^
 
+scenario-selector-test: tests/scenario_selector_test.cpp core/scenario_selector.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o scenario_selector_test.exe $^
+
