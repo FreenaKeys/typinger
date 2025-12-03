@@ -70,3 +70,6 @@ countdown-timer-test: tests/countdown_timer_test.cpp core/countdown_timer.o help
 test-loop-controller-test: tests/test_loop_controller_test.cpp core/test_loop_controller.o core/experiment_session.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o test_loop_controller_test.exe $^
 
+waiting-screen-test: tests/waiting_screen_test.cpp core/waiting_screen.o helper/WinAPI/terminal.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o waiting_screen_test.exe $^
+

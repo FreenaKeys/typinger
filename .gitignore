@@ -19,6 +19,7 @@ csv_logger_append_test.exe
 scenario_selector_test.exe
 countdown_timer_test.exe
 test_loop_controller_test.exe
+waiting_screen_test.exe
 typing_judge_test.exe
 romaji_converter_test.exe
 statistics_test.exe
