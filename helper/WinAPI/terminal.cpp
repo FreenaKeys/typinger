@@ -91,4 +91,16 @@ namespace Terminal {
         DWORD written;
         WriteConsoleW(hConsole, wstr.c_str(), static_cast<DWORD>(wstr.size()), &written, nullptr);
     }
+
+    // テキスト色を設定
+    void setTextColor(Color foreground, Color background) {
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        WORD attributes = static_cast<WORD>((background << 4) | foreground);
+        SetConsoleTextAttribute(hConsole, attributes);
+    }
+
+    // テキスト色をデフォルトに戻す（白文字、黒背景）
+    void resetTextColor() {
+        setTextColor(WHITE, BLACK);
+    }
 }

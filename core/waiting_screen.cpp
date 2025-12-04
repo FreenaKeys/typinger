@@ -28,6 +28,16 @@ namespace WaitingScreen {
         // 画面をクリア
         Terminal::clearScreen();
         
+        // 配列タイプに応じた色を設定
+        Terminal::Color layoutColor;
+        if (layoutType == "new") {
+            layoutColor = Terminal::LIGHT_GREEN;  // 新配列は緑
+        } else if (layoutType == "old") {
+            layoutColor = Terminal::LIGHT_BLUE;   // 旧配列は青
+        } else {
+            layoutColor = Terminal::WHITE;        // 不明は白
+        }
+        
         // メッセージを表示
         Terminal::SetConsoleCursorPosition(0, 3);
         std::cout << "\n";
@@ -36,7 +46,13 @@ namespace WaitingScreen {
         std::cout << "  ========================================\n";
         std::cout << "\n";
         std::cout << "  テスト番号: " << testNumber << "/6\n";
-        std::cout << "  配列タイプ: " << getLayoutName(layoutType) << "\n";
+        std::cout << "  配列タイプ: ";
+        
+        // 配列タイプを色付きで表示
+        Terminal::setTextColor(layoutColor);
+        std::cout << getLayoutName(layoutType);
+        Terminal::resetTextColor();
+        std::cout << "\n";
         std::cout << "\n";
         
         // カウントダウン位置を記録

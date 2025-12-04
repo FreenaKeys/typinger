@@ -73,3 +73,6 @@ test-loop-controller-test: tests/test_loop_controller_test.cpp core/test_loop_co
 waiting-screen-test: tests/waiting_screen_test.cpp core/waiting_screen.o helper/WinAPI/terminal.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o waiting_screen_test.exe $^
 
+color-display-test: tests/color_display_test.cpp helper/WinAPI/terminal.o core/waiting_screen.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o color_display_test.exe $^
+
