@@ -13,7 +13,7 @@ TARGET := main.exe
 SRCS := main.cpp 
 
 # Object files
-OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o core/csv_logger.o
+OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o core/csv_logger.o core/experiment_ui.o
 
 
 # Default target
@@ -75,4 +75,7 @@ waiting-screen-test: tests/waiting_screen_test.cpp core/waiting_screen.o helper/
 
 color-display-test: tests/color_display_test.cpp helper/WinAPI/terminal.o core/waiting_screen.o
 	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o color_display_test.exe $^
+
+experiment-ui-test: tests/experiment_ui_test.cpp core/experiment_ui.o core/experiment_session.o helper/WinAPI/terminal.o
+	TMPDIR=./tmp $(CXX) $(CXXFLAGS) -o experiment_ui_test.exe $^
 
