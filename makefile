@@ -13,7 +13,7 @@ TARGET := main.exe
 SRCS := main.cpp 
 
 # Object files
-OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o core/csv_logger.o core/experiment_ui.o
+OBJS := $(SRCS:.cpp=.o) helper/WinAPI/terminal.o helper/WinAPI/timer.o helper/json_helper.o core/input_recorder.o core/romaji_converter.o core/typing_judge.o core/statistics.o core/csv_logger.o core/experiment_ui.o core/experiment_session.o core/scenario_selector.o core/countdown_timer.o core/test_loop_controller.o core/waiting_screen.o
 
 
 # Default target

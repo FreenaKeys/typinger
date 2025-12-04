@@ -9,11 +9,18 @@
 #include "core/romaji_converter.h"
 #include "core/statistics.h"
 #include "core/csv_logger.h"
+#include "core/experiment_ui.h"
+#include "core/experiment_session.h"
+#include "core/scenario_selector.h"
+#include "core/countdown_timer.h"
+#include "core/test_loop_controller.h"
+#include "core/waiting_screen.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <ctime>
 
 namespace fs = std::filesystem;
 struct Cursor {
@@ -741,6 +748,367 @@ std::string select_file(const fs::path& exeDir) {
 }
 
 
+// 実験モード: 1テスト実行
+int run_single_experiment_test(const ExperimentSession& session, int testNumber) {
+    // シナリオファイルパスを取得
+    std::string scenarioPath = ScenarioSelector::getScenarioPath(session.session_number, testNumber);
+    
+    // シナリオファイルの存在確認
+    if (!ScenarioSelector::scenarioExists(scenarioPath)) {
+        ExperimentUI::showError("シナリオファイルが見つかりません: " + scenarioPath);
+        return -1;
+    }
+    
+    // シナリオ読み込み
+    auto scenarioData = JsonHelper::loadJsonFromFile(scenarioPath);
+    
+    // タイマー初期化（120秒 = 2分）
+    CountdownTimer::Timer timer(120);
+    
+    // 入力記録開始
+    InputRecorder::Recorder recorder;
+    recorder.startSession();
+    
+    // 統計計算初期化
+    Statistics::Calculator statsCalc;
+    uint64_t startTime = WinTimer::now_us();
+    statsCalc.startSession(startTime);
+    
+    // かな入力追跡
+    RomajiConverter::Converter romajiConv;
+    std::string currentRomajiBuffer;
+    uint64_t kanaStartTime = 0;
+    
+    // キーリピート防止
+    bool lastKeyStates[256] = {false};
+    
+    // タイマー開始
+    timer.start();
+    
+    // 画面初期化
+    Terminal::clearScreen();
+    auto size = Terminal::getTerminalSize();
+    
+    // 現在のエントリインデックス
+    int currentEntryIndex = 1;
+    int totalEntries = scenarioData["entries"].size();
+    
+    // 最初のエントリを取得
+    std::string targetText = "";
+    std::string targetRubi = "";
+    
+    if (scenarioData.isObject() && scenarioData["entries"].isObject()) {
+        auto entries = scenarioData["entries"];
+        auto entryKey = std::to_string(currentEntryIndex);
+        if (entries[entryKey].isObject()) {
+            auto entry = entries[entryKey];
+            if (entry["text"].isString()) {
+                targetText = entry["text"].asString();
+            }
+            if (entry["rubi"].isString()) {
+                targetRubi = entry["rubi"].asString();
+            }
+        }
+    }
+    
+    // タイピング判定初期化
+    TypingJudge::Judge judge(targetText, targetRubi);
+    
+    // メインループ
+    while (!timer.isTimeUp()) {
+        // 画面更新
+        Terminal::SetConsoleCursorPosition(0, 0);
+        
+        // ヘッダー情報
+        Terminal::setTextColor(Terminal::LIGHT_CYAN);
+        std::cout << "実験モード - テスト " << testNumber << "/6";
+        Terminal::resetTextColor();
+        std::cout << " | 被験者: " << session.subject_id 
+                  << " | セッション: " << session.session_number << std::endl;
+        
+        // 配列タイプ（色付き）
+        std::cout << "配列: ";
+        if (session.layout_type == "new") {
+            Terminal::setTextColor(Terminal::LIGHT_GREEN);
+        } else {
+            Terminal::setTextColor(Terminal::LIGHT_BLUE);
+        }
+        std::cout << WaitingScreen::getLayoutName(session.layout_type);
+        Terminal::resetTextColor();
+        std::cout << std::endl;
+        
+        // タイマー表示
+        int remaining = timer.getRemainingSeconds();
+        std::cout << "残り時間: " << remaining << " 秒" << std::endl;
+        
+        // 進捗表示
+        std::cout << "単語: " << currentEntryIndex << "/" << totalEntries << std::endl;
+        std::cout << std::endl;
+        
+        // 目標テキスト表示
+        std::cout << "目標: " << targetText << std::endl;
+        std::cout << "ルビ: " << targetRubi << std::endl;
+        std::cout << "進捗: " << judge.getRemainingRubi() << std::endl;
+        std::cout << std::endl;
+        
+        // ESCで中断
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            break;
+        }
+        
+        // 文字入力処理（簡略版 - typing_modeから移植）
+        for (int key = 32; key <= 126; ++key) {
+            if (key == VK_ESCAPE) continue;
+            
+            bool keyPressed = (GetAsyncKeyState(key) & 0x8000) != 0;
+            
+            if (keyPressed && !lastKeyStates[key]) {
+                lastKeyStates[key] = true;
+                
+                char ch = static_cast<char>(key);
+                if (ch >= 'A' && ch <= 'Z') {
+                    bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                    if (!shift) ch += 32;
+                }
+                
+                recorder.recordKeyDown(key, 0, ch);
+                uint64_t keyDownTime = WinTimer::now_us();
+                
+                auto result = judge.judgeChar(ch);
+                recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+                
+                if (result == TypingJudge::JudgeResult::CORRECT) {
+                    if (currentRomajiBuffer.empty()) {
+                        kanaStartTime = keyDownTime;
+                    }
+                    currentRomajiBuffer += ch;
+                    
+                    auto convertResult = romajiConv.convert(currentRomajiBuffer);
+                    if (convertResult.status == RomajiConverter::ConvertStatus::MATCHED) {
+                        uint64_t keyUpTime = WinTimer::now_us();
+                        statsCalc.recordKanaInput(convertResult.kana, currentRomajiBuffer, 
+                                                  kanaStartTime, keyUpTime);
+                        currentRomajiBuffer.clear();
+                        kanaStartTime = 0;
+                    }
+                } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                    currentRomajiBuffer.clear();
+                    kanaStartTime = 0;
+                }
+                
+                recorder.recordKeyUp(key, 0);
+                
+                // 単語完了 → 次の単語へ
+                if (judge.isCompleted()) {
+                    currentEntryIndex++;
+                    if (currentEntryIndex > totalEntries) {
+                        break; // 全単語完了
+                    }
+                    
+                    // 次の単語を取得
+                    auto entries = scenarioData["entries"];
+                    auto entryKey = std::to_string(currentEntryIndex);
+                    if (entries[entryKey].isObject()) {
+                        auto entry = entries[entryKey];
+                        targetText = entry["text"].asString();
+                        targetRubi = entry["rubi"].asString();
+                        judge = TypingJudge::Judge(targetText, targetRubi);
+                    }
+                }
+                
+                break;
+            } else if (!keyPressed && lastKeyStates[key]) {
+                lastKeyStates[key] = false;
+            }
+        }
+        
+        // ハイフンキー処理
+        bool hyphenKeyPressed = (GetAsyncKeyState(0xBD) & 0x8000) != 0;
+        if (hyphenKeyPressed && !lastKeyStates[0xBD]) {
+            lastKeyStates[0xBD] = true;
+            bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            char ch = shift ? '_' : '-';
+            
+            recorder.recordKeyDown(0xBD, 0, ch);
+            uint64_t keyDownTime = WinTimer::now_us();
+            
+            auto result = judge.judgeChar(ch);
+            recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+            
+            if (result == TypingJudge::JudgeResult::CORRECT) {
+                if (currentRomajiBuffer.empty()) {
+                    kanaStartTime = keyDownTime;
+                }
+                currentRomajiBuffer += ch;
+                
+                auto convertResult = romajiConv.convert(currentRomajiBuffer);
+                if (convertResult.status == RomajiConverter::ConvertStatus::MATCHED) {
+                    uint64_t keyUpTime = WinTimer::now_us();
+                    statsCalc.recordKanaInput(convertResult.kana, currentRomajiBuffer, 
+                                              kanaStartTime, keyUpTime);
+                    currentRomajiBuffer.clear();
+                    kanaStartTime = 0;
+                }
+            } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                currentRomajiBuffer.clear();
+                kanaStartTime = 0;
+            }
+            
+            recorder.recordKeyUp(0xBD, 0);
+            
+            if (judge.isCompleted()) {
+                currentEntryIndex++;
+                if (currentEntryIndex > totalEntries) {
+                    break;
+                }
+                
+                auto entries = scenarioData["entries"];
+                auto entryKey = std::to_string(currentEntryIndex);
+                if (entries[entryKey].isObject()) {
+                    auto entry = entries[entryKey];
+                    targetText = entry["text"].asString();
+                    targetRubi = entry["rubi"].asString();
+                    judge = TypingJudge::Judge(targetText, targetRubi);
+                }
+            }
+        } else if (!hyphenKeyPressed && lastKeyStates[0xBD]) {
+            lastKeyStates[0xBD] = false;
+        }
+        
+        Sleep(10);
+    }
+    
+    // セッション終了
+    timer.stop();
+    recorder.endSession();
+    
+    uint64_t endTime = WinTimer::now_us();
+    statsCalc.endSession(endTime);
+    
+    // 統計計算
+    const auto& events = recorder.getEvents();
+    for (const auto& event : events) {
+        if (event.type == InputRecorder::EventType::KEY_DOWN) {
+            statsCalc.recordKeyDown(event.timestamp_us, event.vk_code, event.character);
+        } else if (event.type == InputRecorder::EventType::KEY_UP) {
+            statsCalc.recordKeyUp(event.timestamp_us, event.vk_code);
+        } else if (event.type == InputRecorder::EventType::BACKSPACE) {
+            statsCalc.recordBackspace(event.timestamp_us);
+        }
+    }
+    
+    auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
+    
+    // CSV出力（実験データ用）
+    CSVLogger::ExperimentData expData;
+    expData.subject_id = session.subject_id;
+    expData.session_number = session.session_number;
+    expData.test_number = testNumber;
+    expData.layout_type = session.layout_type;
+    
+    std::string csvPath = CSVLogger::appendSummaryCSV(stats, expData, "output");
+    
+    // 結果表示
+    Terminal::clearScreen();
+    Terminal::SetConsoleCursorPosition(0, 3);
+    std::cout << "\n";
+    std::cout << "  テスト " << testNumber << " 完了\n";
+    std::cout << "\n";
+    std::cout << "  正解率: " << static_cast<int>((double)stats.correctKeyCount / 
+        (stats.correctKeyCount + stats.incorrectKeyCount) * 100) << "%\n";
+    std::cout << "  WPM: " << static_cast<int>(stats.wpmCorrect) << "\n";
+    std::cout << "  完了単語数: " << (currentEntryIndex - 1) << "/" << totalEntries << "\n";
+    std::cout << "\n";
+    std::cout << "  CSV保存: " << csvPath << "\n";
+    std::cout << "\n";
+    
+    Sleep(2000);
+    
+    return 0;
+}
+
+// 実験モード: 6テストループ
+int experiment_mode() {
+    // セッション情報入力
+    ExperimentSession session = ExperimentUI::inputExperimentSession();
+    
+    // キャンセルされた場合
+    if (session.subject_id.empty()) {
+        return 0;
+    }
+    
+    // 確認画面
+    ExperimentUI::showConfirmation(session);
+    
+    // テストループコントローラー初期化
+    // 最初の配列タイプを取得（奇数セッション=new、偶数セッション=old）
+    std::string firstLayout = (session.session_number % 2 == 1) ? "new" : "old";
+    TestLoopController::Controller controller(firstLayout, session.session_number);
+    
+    // 6テストループ
+    while (!controller.isComplete()) {
+        int testNumber = controller.getCurrentTestNumber();
+        
+        // 配列タイプを取得
+        std::string layoutType = controller.getCurrentLayout();
+        
+        // セッション情報更新
+        session.test_order = testNumber;
+        session.layout_type = layoutType;
+        
+        // 待機画面（3秒カウントダウン）
+        WaitingScreen::showCountdown(testNumber, layoutType, 3);
+        
+        // 1テスト実行
+        int result = run_single_experiment_test(session, testNumber);
+        
+        if (result != 0) {
+            // エラーが発生した場合は中断
+            ExperimentUI::showError("テスト実行中にエラーが発生しました");
+            return -1;
+        }
+        
+        // 次のテストへ
+        controller.next();
+    }
+    
+    // 全テスト完了メッセージ
+    Terminal::clearScreen();
+    Terminal::SetConsoleCursorPosition(0, 5);
+    std::cout << "\n";
+    Terminal::setTextColor(Terminal::LIGHT_GREEN);
+    std::cout << "  *** 全テスト完了！ ***\n";
+    Terminal::resetTextColor();
+    std::cout << "\n";
+    std::cout << "  被験者ID: " << session.subject_id << "\n";
+    std::cout << "  セッション番号: " << session.session_number << "\n";
+    std::cout << "  完了テスト数: 6/6\n";
+    std::cout << "\n";
+    std::cout << "  データは output/typing_summary_" << session.subject_id << ".csv に保存されました\n";
+    std::cout << "\n";
+    std::cout << "  お疲れ様でした！\n";
+    std::cout << "\n";
+    std::cout << "  (何かキーを押して終了...)\n";
+    
+    // キー入力待ち
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    FlushConsoleInputBuffer(hStdin);
+    
+    while (true) {
+        for (int key = 0; key < 256; ++key) {
+            if (GetAsyncKeyState(key) & 0x8000) {
+                while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
+                FlushConsoleInputBuffer(hStdin);
+                return 0;
+            }
+        }
+        Sleep(10);
+    }
+    
+    return 0;
+}
+
+
 int main() {
     //初期化開始
         // UTF-8 出力対応
@@ -750,14 +1118,25 @@ int main() {
 
         // 画面全体クリア
         Terminal::clearScreen();
-        // 入力エリアの先頭にカーソルを初期化
-        //Cursor cursor {0, 6};
-        //UIの呼び出し
-        const char* version = "0.0.0 - Dummy Version"; // ここでバージョンを指定
-        //initialized_UI(version); // 小数点以下切り捨てで整数化
 
     //初期化終了
-    //typing_mode();
+    
+    // モード選択
+    ExperimentUI::Mode mode = ExperimentUI::selectMode();
+    
+    if (mode == ExperimentUI::Mode::QUIT) {
+        // 終了
+        Terminal::clearScreen();
+        std::cout << "終了します。\n";
+        return 0;
+    } else if (mode == ExperimentUI::Mode::EXPERIMENT) {
+        // 実験モード
+        experiment_mode();
+        return 0;
+    }
+    
+    // 通常モード（既存の動作）
+    const char* version = "0.0.0 - Dummy Version";
     char path[MAX_PATH];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     fs::path exePath(path);
