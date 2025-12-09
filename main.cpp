@@ -1,6 +1,9 @@
 #include <iostream>
 #include <string>
 #include <windows.h>
+#include <conio.h>
+#include <algorithm>
+#include <random>
 #include "helper/WinAPI/terminal.h"
 #include "helper/WinAPI/timer.h"
 #include "helper/json_helper.h"
@@ -15,6 +18,7 @@
 #include "core/countdown_timer.h"
 #include "core/test_loop_controller.h"
 #include "core/waiting_screen.h"
+#include "core/input_mode.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
@@ -196,8 +200,6 @@ int typing_mode() {
             FlushConsoleInputBuffer(hStdin);
             return 0;
         }
-
-        DWORD now = GetTickCount();
 
         // バックスペース
         if (GetAsyncKeyState(VK_BACK) & 0x8000) {
@@ -790,24 +792,34 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
     auto size = Terminal::getTerminalSize();
     
     // 現在のエントリインデックス
-    int currentEntryIndex = 1;
-    int totalEntries = scenarioData["entries"].size();
+    int currentEntryIndex = 0;  // 配列は0から開始
+    int totalEntries = 0;
+    
+    // エントリ配列を取得
+    std::vector<JsonHelper::JsonValue> entries;
+    if (scenarioData.isObject() && scenarioData["entries"].isArray()) {
+        entries = scenarioData["entries"].asArray();
+        totalEntries = entries.size();
+    }
+
+    // エントリをシャッフル（ランダム出題）
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(entries.begin(), entries.end(), g);
     
     // 最初のエントリを取得
     std::string targetText = "";
     std::string targetRubi = "";
     
-    if (scenarioData.isObject() && scenarioData["entries"].isObject()) {
-        auto entries = scenarioData["entries"];
-        auto entryKey = std::to_string(currentEntryIndex);
-        if (entries[entryKey].isObject()) {
-            auto entry = entries[entryKey];
-            if (entry["text"].isString()) {
-                targetText = entry["text"].asString();
-            }
-            if (entry["rubi"].isString()) {
-                targetRubi = entry["rubi"].asString();
-            }
+    if (totalEntries > 0) {
+        auto entry = entries[currentEntryIndex];
+        if (entry["text"].isString()) {
+            targetText = entry["text"].asString();
+        }
+        if (entry["ruby"].isString()) {  // "ruby"フィールド
+            std::string rawRubi = entry["ruby"].asString();
+            // かな→ローマ字変換
+            targetRubi = RomajiConverter::Converter::toRomaji(rawRubi);
         }
     }
     
@@ -842,13 +854,25 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
         std::cout << "残り時間: " << remaining << " 秒" << std::endl;
         
         // 進捗表示
-        std::cout << "単語: " << currentEntryIndex << "/" << totalEntries << std::endl;
+        std::cout << "単語: " << (currentEntryIndex + 1) << "/" << totalEntries << std::endl;
         std::cout << std::endl;
         
         // 目標テキスト表示
-        std::cout << "目標: " << targetText << std::endl;
-        std::cout << "ルビ: " << targetRubi << std::endl;
-        std::cout << "進捗: " << judge.getRemainingRubi() << std::endl;
+        std::cout << "目標: " << targetText << Terminal::Value_to_Blank(size.width - 10 - Terminal::getDisplayWidth(targetText), " ") << std::endl;
+        std::cout << "ルビ: " << targetRubi << Terminal::Value_to_Blank(size.width - 10 - targetRubi.length(), " ") << std::endl;
+        
+        // 進捗表示（色分け）
+        std::cout << "進捗: ";
+        std::string typedPart = targetRubi.substr(0, judge.getCurrentPosition());
+        std::string remainingPart = targetRubi.substr(judge.getCurrentPosition());
+        
+        Terminal::setTextColor(Terminal::GRAY);
+        std::cout << typedPart;
+        Terminal::resetTextColor();
+        std::cout << remainingPart;
+        
+        // 行末クリア
+        std::cout << Terminal::Value_to_Blank(size.width - 10 - targetRubi.length(), " ") << std::endl;
         std::cout << std::endl;
         
         // ESCで中断
@@ -901,17 +925,21 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
                 // 単語完了 → 次の単語へ
                 if (judge.isCompleted()) {
                     currentEntryIndex++;
-                    if (currentEntryIndex > totalEntries) {
+                    if (currentEntryIndex >= totalEntries) {
                         break; // 全単語完了
                     }
                     
                     // 次の単語を取得
-                    auto entries = scenarioData["entries"];
-                    auto entryKey = std::to_string(currentEntryIndex);
-                    if (entries[entryKey].isObject()) {
-                        auto entry = entries[entryKey];
+                    auto entry = entries[currentEntryIndex];
+                    if (entry["text"].isString() && entry["ruby"].isString()) {
                         targetText = entry["text"].asString();
-                        targetRubi = entry["rubi"].asString();
+                        std::string rawRubi = entry["ruby"].asString();
+                        targetRubi = RomajiConverter::Converter::toRomaji(rawRubi);
+                        judge = TypingJudge::Judge(targetText, targetRubi);
+                    } else {
+                        // エラー：テキスト取得失敗
+                        targetText = "Error: Invalid Entry";
+                        targetRubi = "error";
                         judge = TypingJudge::Judge(targetText, targetRubi);
                     }
                 }
@@ -958,16 +986,15 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
             
             if (judge.isCompleted()) {
                 currentEntryIndex++;
-                if (currentEntryIndex > totalEntries) {
+                if (currentEntryIndex >= totalEntries) {
                     break;
                 }
                 
-                auto entries = scenarioData["entries"];
-                auto entryKey = std::to_string(currentEntryIndex);
-                if (entries[entryKey].isObject()) {
-                    auto entry = entries[entryKey];
+                auto entry = entries[currentEntryIndex];
+                if (entry["text"].isString() && entry["ruby"].isString()) {
                     targetText = entry["text"].asString();
-                    targetRubi = entry["rubi"].asString();
+                    std::string rawRubi = entry["ruby"].asString();
+                    targetRubi = RomajiConverter::Converter::toRomaji(rawRubi);
                     judge = TypingJudge::Judge(targetText, targetRubi);
                 }
             }
@@ -998,7 +1025,7 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
     }
     
     auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
-    
+
     // CSV出力（実験データ用）
     CSVLogger::ExperimentData expData;
     expData.subject_id = session.subject_id;
@@ -1017,9 +1044,14 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
     std::cout << "  正解率: " << static_cast<int>((double)stats.correctKeyCount / 
         (stats.correctKeyCount + stats.incorrectKeyCount) * 100) << "%\n";
     std::cout << "  WPM: " << static_cast<int>(stats.wpmCorrect) << "\n";
-    std::cout << "  完了単語数: " << (currentEntryIndex - 1) << "/" << totalEntries << "\n";
+    std::cout << "  完了単語数: " << currentEntryIndex << "/" << totalEntries << "\n";
     std::cout << "\n";
-    std::cout << "  CSV保存: " << csvPath << "\n";
+    
+    if (csvPath.empty()) {
+        std::cout << "  CSV保存: (エラーまたは重複データのため保存されませんでした)\n";
+    } else {
+        std::cout << "  CSV保存: " << csvPath << "\n";
+    }
     std::cout << "\n";
     
     Sleep(2000);
@@ -1056,6 +1088,24 @@ int experiment_mode() {
         session.test_order = testNumber;
         session.layout_type = layoutType;
         
+        // 2回目以降はEnterキー待機
+        if (testNumber > 1) {
+            Terminal::clearScreen();
+            Terminal::SetConsoleCursorPosition(0, 5);
+            std::cout << "\n";
+            std::cout << "  次のテストの準備ができました。\n";
+            std::cout << "  Enterキーを押して開始してください...\n";
+            
+            // バッファクリア
+            while (_kbhit()) _getch();
+            
+            // Enterキー待ち
+            while (true) {
+                int key = _getch();
+                if (key == 13) break; // Enter
+            }
+        }
+        
         // 待機画面（3秒カウントダウン）
         WaitingScreen::showCountdown(testNumber, layoutType, 3);
         
@@ -1091,23 +1141,151 @@ int experiment_mode() {
     std::cout << "  (何かキーを押して終了...)\n";
     
     // キー入力待ち
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    FlushConsoleInputBuffer(hStdin);
+    while (_kbhit()) _getch(); // バッファクリア
+    _getch();
+    
+    return 0;
+}
+
+
+// 判定確認モード（フリータイピング）
+int run_input_logic_test() {
+    Terminal::clearScreen();
+    
+    std::cout << "=== 判定確認モード (Free Typing) ===\n";
+    std::cout << "ローマ字を入力すると、リアルタイムでかなに変換されます\n";
+    std::cout << "ESCキーで終了します\n";
+    std::cout << "\n";
+    std::cout << "入力開始:\n";
+    std::cout << "────────────────────────────────────\n";
+    
+    // かな変換用
+    RomajiConverter::Converter converter;
+    std::string romajiBuffer;  // 現在入力中のローマ字バッファ
+    std::string convertedKana; // 確定したかな
+    
+    // キーリピート防止
+    bool lastKeyStates[256] = {false};
+    
+    int displayLine = 6; // 表示開始行
     
     while (true) {
-        for (int key = 0; key < 256; ++key) {
-            if (GetAsyncKeyState(key) & 0x8000) {
-                while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
-                FlushConsoleInputBuffer(hStdin);
-                return 0;
+        // ESCで終了
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            Terminal::clearScreen();
+            std::cout << "判定確認モードを終了します\n";
+            Sleep(1000);
+            return 0;
+        }
+        
+        // Backspace処理
+        if (GetAsyncKeyState(VK_BACK) & 0x8000) {
+            if (!romajiBuffer.empty()) {
+                // ローマ字バッファから1文字削除
+                romajiBuffer.pop_back();
+            } else if (!convertedKana.empty()) {
+                // 確定済みかなから削除（最後の文字を取得してローマ字に戻す）
+                // 簡易実装: 最後の1文字（UTF-8で3バイト）を削除
+                if (convertedKana.length() >= 3) {
+                    convertedKana.erase(convertedKana.length() - 3);
+                }
+            }
+            
+            // 画面更新
+            Terminal::SetConsoleCursorPosition(0, displayLine);
+            std::cout << "かな: " << convertedKana;
+            Terminal::setTextColor(Terminal::GRAY);
+            std::cout << romajiBuffer;
+            Terminal::resetTextColor();
+            std::cout << "        \n"; // 行末クリア（余分な文字を消す）
+            
+            Terminal::SetConsoleCursorPosition(0, displayLine + 1);
+            std::cout << "ローマ字: " << convertedKana << romajiBuffer << "        \n";
+            
+            // キーが離されるまで待つ
+            while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(10);
+        }
+        
+        // キー入力処理
+        for (int key = 32; key <= 126; ++key) {
+            if (key == VK_ESCAPE) continue;
+            
+            bool keyPressed = (GetAsyncKeyState(key) & 0x8000) != 0;
+            
+            if (keyPressed && !lastKeyStates[key]) {
+                lastKeyStates[key] = true;
+                
+                char ch = static_cast<char>(key);
+                if (ch >= 'A' && ch <= 'Z') {
+                    bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                    if (!shift) ch += 32;
+                }
+                
+                // ローマ字バッファに追加
+                romajiBuffer += ch;
+                
+                // かな変換を試行
+                auto result = converter.convert(romajiBuffer);
+                
+                if (result.status == RomajiConverter::ConvertStatus::MATCHED) {
+                    // かな確定
+                    convertedKana += result.kana;
+                    romajiBuffer = result.remaining;
+                }
+                // PARTIAL（入力途中）の場合は何もしない
+                
+                // 画面更新
+                Terminal::SetConsoleCursorPosition(0, displayLine);
+                std::cout << "かな: " << convertedKana;
+                Terminal::setTextColor(Terminal::GRAY);
+                std::cout << romajiBuffer; // 入力途中のローマ字をグレーで表示
+                Terminal::resetTextColor();
+                std::cout << "   \n"; // 行末クリア
+                
+                Terminal::SetConsoleCursorPosition(0, displayLine + 1);
+                std::cout << "ローマ字: " << convertedKana;
+                // ローマ字を再構築（表示用、簡易版）
+                std::cout << romajiBuffer << "   \n";
+                
+            } else if (!keyPressed && lastKeyStates[key]) {
+                lastKeyStates[key] = false;
             }
         }
+        
+        // ハイフンキー処理
+        bool hyphenKeyPressed = (GetAsyncKeyState(0xBD) & 0x8000) != 0;
+        if (hyphenKeyPressed && !lastKeyStates[0xBD]) {
+            lastKeyStates[0xBD] = true;
+            bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            char ch = shift ? '_' : '-';
+            
+            romajiBuffer += ch;
+            
+            auto result = converter.convert(romajiBuffer);
+            if (result.status == RomajiConverter::ConvertStatus::MATCHED) {
+                convertedKana += result.kana;
+                romajiBuffer = result.remaining;
+            }
+            
+            Terminal::SetConsoleCursorPosition(0, displayLine);
+            std::cout << "かな: " << convertedKana;
+            Terminal::setTextColor(Terminal::GRAY);
+            std::cout << romajiBuffer;
+            Terminal::resetTextColor();
+            std::cout << "   \n";
+            
+            Terminal::SetConsoleCursorPosition(0, displayLine + 1);
+            std::cout << "ローマ字: " << convertedKana << romajiBuffer << "   \n";
+            
+        } else if (!hyphenKeyPressed && lastKeyStates[0xBD]) {
+            lastKeyStates[0xBD] = false;
+        }
+        
         Sleep(10);
     }
     
     return 0;
 }
-
 
 int main() {
     //初期化開始
@@ -1132,6 +1310,10 @@ int main() {
     } else if (mode == ExperimentUI::Mode::EXPERIMENT) {
         // 実験モード
         experiment_mode();
+        return 0;
+    } else if (mode == ExperimentUI::Mode::INPUT_TEST) {
+        // 判定確認モード
+        run_input_logic_test();
         return 0;
     }
     
