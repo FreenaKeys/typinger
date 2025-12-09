@@ -64,6 +64,18 @@ namespace RomajiConverter {
 
         // デバッグ用: 変換テーブルのサイズを取得
         size_t getTableSize() const;
+
+        // かな→ローマ字変換（実験モード用）
+        // kana: 変換対象のかな文字列（ひらがな・カタカナ）
+        // 戻り値: ローマ字文字列（ヘボン式準拠）
+        static std::string toRomaji(const std::string& kana);
+
+    private:
+        // かな→ローマ字変換テーブル（静的）
+        static std::map<std::string, std::string> kanaToRomajiMap;
+
+        // かな→ローマ字変換テーブルの初期化
+        static void initKanaToRomaji();
     };
 
 } // namespace RomajiConverter

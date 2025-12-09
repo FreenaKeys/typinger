@@ -7,6 +7,7 @@ namespace ExperimentUI {
     enum class Mode {
         NORMAL,      // 通常モード
         EXPERIMENT,  // 実験モード
+        INPUT_TEST,  // 判定確認モード
         QUIT         // 終了
     };
 

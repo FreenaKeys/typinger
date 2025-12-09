@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <thread>
 #include <chrono>
+#include <conio.h>
 
 namespace ExperimentUI {
 
@@ -22,6 +23,7 @@ namespace ExperimentUI {
         std::cout << "\n";
         std::cout << "  [1] 通常モード（練習用）\n";
         std::cout << "  [2] 実験モード（データ収集用）\n";
+        std::cout << "  [3] 入力モード（入力確認用）\n";
         std::cout << "  [ESC] 終了\n";
         std::cout << "\n";
         
@@ -34,6 +36,10 @@ namespace ExperimentUI {
             if (GetAsyncKeyState('2') & 0x8000) {
                 while (GetAsyncKeyState('2') & 0x8000) Sleep(1);
                 return Mode::EXPERIMENT;
+            }
+            if (GetAsyncKeyState('3') & 0x8000) {
+                while (GetAsyncKeyState('3') & 0x8000) Sleep(1);
+                return Mode::INPUT_TEST;
             }
             if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
                 while (GetAsyncKeyState(VK_ESCAPE) & 0x8000) Sleep(1);
@@ -192,17 +198,17 @@ namespace ExperimentUI {
         std::cout << "  最初のテスト: Test 1 (" 
                   << (session.layout_type == "new" ? "新配列" : "旧配列") << ")\n";
         std::cout << "\n";
-        std::cout << "  準備ができたら何かキーを押してください...\n";
+        std::cout << "  開始するには 'y' を入力してください (Press 'y' to start)\n";
         
+        // 入力バッファクリア
+        while (_kbhit()) _getch();
+
         // キー入力待ち
         while (true) {
-            for (int key = 0; key < 256; ++key) {
-                if (GetAsyncKeyState(key) & 0x8000) {
-                    while (GetAsyncKeyState(key) & 0x8000) Sleep(1);
-                    return;
-                }
+            int key = _getch();
+            if (key == 'y' || key == 'Y') {
+                break;
             }
-            Sleep(10);
         }
     }
 
