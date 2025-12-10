@@ -192,35 +192,35 @@ namespace CSVLogger {
         file << "metric,value,unit\n";
         
         // 実験データ（Phase 6で追加）
-        file << "subject_id," << expData.subject_id << ",text\n";
-        file << "session_number," << expData.session_number << ",number\n";
-        file << "layout_type," << expData.layout_type << ",text\n";
-        file << "test_number," << expData.test_number << ",number\n";
+        file << "被験者ID," << expData.subject_id << ",text\n";
+        file << "セッション番号," << expData.session_number << ",number\n";
+        file << "配列タイプ," << expData.layout_type << ",text\n";
+        file << "テスト番号," << expData.test_number << ",number\n";
         
         // 基本情報
-        file << "total_duration," << stats.totalDuration << ",microseconds\n";
-        file << "total_duration_sec," << (stats.totalDuration / 1000000.0) << ",seconds\n";
-        file << "total_key_count," << stats.totalKeyCount << ",keys\n";
-        file << "correct_key_count," << stats.correctKeyCount << ",keys\n";
-        file << "incorrect_key_count," << stats.incorrectKeyCount << ",keys\n";
-        file << "backspace_count," << stats.backspaceCount << ",keys\n";
+        file << "テスト時間," << stats.totalDuration << ",microseconds\n";
+        file << "テスト時間_秒," << std::fixed << std::setprecision(3) << (stats.totalDuration / 1000000.0) << ",seconds\n";
+        file << "総キー入力数," << stats.totalKeyCount << ",keys\n";
+        file << "正解キー数," << stats.correctKeyCount << ",keys\n";
+        file << "誤入力キー数," << stats.incorrectKeyCount << ",keys\n";
+        file << "削除キー数," << stats.backspaceCount << ",keys\n";
         
         // 正答率
         double accuracy = (stats.totalKeyCount > 0) 
             ? (static_cast<double>(stats.correctKeyCount) / stats.totalKeyCount * 100.0)
             : 0.0;
-        file << "accuracy," << std::fixed << std::setprecision(2) << accuracy << ",percent\n";
+        file << "正確度," << std::fixed << std::setprecision(2) << accuracy << ",percent\n";
         
         // WPM/CPM
-        file << "wpm_total," << std::fixed << std::setprecision(2) << stats.wpmTotal << ",words_per_minute\n";
-        file << "wpm_correct," << std::fixed << std::setprecision(2) << stats.wpmCorrect << ",words_per_minute\n";
-        file << "cpm_total," << std::fixed << std::setprecision(2) << stats.cpmTotal << ",chars_per_minute\n";
-        file << "cpm_correct," << std::fixed << std::setprecision(2) << stats.cpmCorrect << ",chars_per_minute\n";
+        file << "WPM_総入力," << std::fixed << std::setprecision(2) << stats.wpmTotal << ",words_per_minute\n";
+        file << "WPM_正解," << std::fixed << std::setprecision(2) << stats.wpmCorrect << ",words_per_minute\n";
+        file << "CPM_総入力," << std::fixed << std::setprecision(2) << stats.cpmTotal << ",chars_per_minute\n";
+        file << "CPM_正解," << std::fixed << std::setprecision(2) << stats.cpmCorrect << ",chars_per_minute\n";
         
         // キー間隔
-        file << "avg_inter_key_interval," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
-        file << "min_inter_key_interval," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
-        file << "max_inter_key_interval," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
+        file << "平均キー間隔," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
+        file << "最小キー間隔," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
+        file << "最大キー間隔," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
         
         file.close();
         
@@ -279,8 +279,8 @@ namespace CSVLogger {
                 continue;
             }
             
-            // セッション番号を取得
-            if (line.find("session_number,") == 0) {
+            // セッション番号を取得（日本語項目名対応）
+            if (line.find("セッション番号,") == 0) {
                 size_t pos = line.find(',');
                 if (pos != std::string::npos) {
                     size_t pos2 = line.find(',', pos + 1);
@@ -289,8 +289,8 @@ namespace CSVLogger {
                 }
             }
             
-            // 配列タイプを取得
-            if (line.find("layout_type,") == 0) {
+            // 配列タイプを取得（日本語項目名対応）
+            if (line.find("配列タイプ,") == 0) {
                 size_t pos = line.find(',');
                 if (pos != std::string::npos) {
                     size_t pos2 = line.find(',', pos + 1);
@@ -298,8 +298,8 @@ namespace CSVLogger {
                 }
             }
             
-            // テスト番号を取得
-            if (line.find("test_number,") == 0) {
+            // テスト番号を取得（日本語項目名対応）
+            if (line.find("テスト番号,") == 0) {
                 size_t pos = line.find(',');
                 if (pos != std::string::npos) {
                     size_t pos2 = line.find(',', pos + 1);
@@ -363,35 +363,35 @@ namespace CSVLogger {
         }
         
         // 実験データ（Phase 6で追加）
-        file << "subject_id," << expData.subject_id << ",text\n";
-        file << "session_number," << expData.session_number << ",number\n";
-        file << "layout_type," << expData.layout_type << ",text\n";
-        file << "test_number," << expData.test_number << ",number\n";
+        file << "被験者ID," << expData.subject_id << ",text\n";
+        file << "セッション番号," << expData.session_number << ",number\n";
+        file << "配列タイプ," << expData.layout_type << ",text\n";
+        file << "テスト番号," << expData.test_number << ",number\n";
         
         // 基本情報
-        file << "total_duration," << stats.totalDuration << ",microseconds\n";
-        file << "total_duration_sec," << (stats.totalDuration / 1000000.0) << ",seconds\n";
-        file << "total_key_count," << stats.totalKeyCount << ",keys\n";
-        file << "correct_key_count," << stats.correctKeyCount << ",keys\n";
-        file << "incorrect_key_count," << stats.incorrectKeyCount << ",keys\n";
-        file << "backspace_count," << stats.backspaceCount << ",keys\n";
+        file << "テスト時間," << stats.totalDuration << ",microseconds\n";
+        file << "テスト時間_秒," << std::fixed << std::setprecision(3) << (stats.totalDuration / 1000000.0) << ",seconds\n";
+        file << "総キー入力数," << stats.totalKeyCount << ",keys\n";
+        file << "正解キー数," << stats.correctKeyCount << ",keys\n";
+        file << "誤入力キー数," << stats.incorrectKeyCount << ",keys\n";
+        file << "削除キー数," << stats.backspaceCount << ",keys\n";
         
         // 正答率
         double accuracy = (stats.totalKeyCount > 0) 
             ? (static_cast<double>(stats.correctKeyCount) / stats.totalKeyCount * 100.0)
             : 0.0;
-        file << "accuracy," << std::fixed << std::setprecision(2) << accuracy << ",percent\n";
+        file << "正確度," << std::fixed << std::setprecision(2) << accuracy << ",percent\n";
         
         // WPM/CPM
-        file << "wpm_total," << std::fixed << std::setprecision(2) << stats.wpmTotal << ",words_per_minute\n";
-        file << "wpm_correct," << std::fixed << std::setprecision(2) << stats.wpmCorrect << ",words_per_minute\n";
-        file << "cpm_total," << std::fixed << std::setprecision(2) << stats.cpmTotal << ",chars_per_minute\n";
-        file << "cpm_correct," << std::fixed << std::setprecision(2) << stats.cpmCorrect << ",chars_per_minute\n";
+        file << "WPM_総入力," << std::fixed << std::setprecision(2) << stats.wpmTotal << ",words_per_minute\n";
+        file << "WPM_正解," << std::fixed << std::setprecision(2) << stats.wpmCorrect << ",words_per_minute\n";
+        file << "CPM_総入力," << std::fixed << std::setprecision(2) << stats.cpmTotal << ",chars_per_minute\n";
+        file << "CPM_正解," << std::fixed << std::setprecision(2) << stats.cpmCorrect << ",chars_per_minute\n";
         
         // キー間隔
-        file << "avg_inter_key_interval," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
-        file << "min_inter_key_interval," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
-        file << "max_inter_key_interval," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
+        file << "平均キー間隔," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
+        file << "最小キー間隔," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
+        file << "最大キー間隔," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
         
         // セッション間の区切り（空行）
         file << "\n";
