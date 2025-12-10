@@ -18,7 +18,6 @@
 #include "core/countdown_timer.h"
 #include "core/test_loop_controller.h"
 #include "core/waiting_screen.h"
-#include "core/input_mode.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
