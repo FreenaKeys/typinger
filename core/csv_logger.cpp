@@ -222,6 +222,17 @@ namespace CSVLogger {
         file << "最小キー間隔," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
         file << "最大キー間隔," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
         
+        // Phase 7: 重要かな30文字の入力時間
+        for (const auto& kana : Statistics::IMPORTANT_KANA) {
+            auto it = stats.importantKanaIntervals.find(kana);
+            if (it != stats.importantKanaIntervals.end() && it->second > 0.0) {
+                file << "かな_" << kana << "," << std::fixed << std::setprecision(2) << it->second << ",milliseconds\n";
+            } else {
+                // データがない場合は0.0を出力
+                file << "かな_" << kana << ",0.00,milliseconds\n";
+            }
+        }
+        
         file.close();
         
         // かな別入力時間を別ファイルに出力
@@ -392,6 +403,17 @@ namespace CSVLogger {
         file << "平均キー間隔," << std::fixed << std::setprecision(2) << stats.avgInterKeyInterval << ",milliseconds\n";
         file << "最小キー間隔," << std::fixed << std::setprecision(2) << stats.minInterKeyInterval << ",milliseconds\n";
         file << "最大キー間隔," << std::fixed << std::setprecision(2) << stats.maxInterKeyInterval << ",milliseconds\n";
+        
+        // Phase 7: 重要かな30文字の入力時間
+        for (const auto& kana : Statistics::IMPORTANT_KANA) {
+            auto it = stats.importantKanaIntervals.find(kana);
+            if (it != stats.importantKanaIntervals.end() && it->second > 0.0) {
+                file << "かな_" << kana << "," << std::fixed << std::setprecision(2) << it->second << ",milliseconds\n";
+            } else {
+                // データがない場合は0.0を出力
+                file << "かな_" << kana << ",0.00,milliseconds\n";
+            }
+        }
         
         // セッション間の区切り（空行）
         file << "\n";

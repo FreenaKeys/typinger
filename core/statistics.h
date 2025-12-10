@@ -15,6 +15,24 @@
 
 namespace Statistics {
 
+    // Phase 7: 重要かな文字リスト（新配列検証用・30文字）
+    const std::vector<std::string> IMPORTANT_KANA = {
+        // K行（5文字）- 左手中指への移動効果
+        "か", "き", "く", "け", "こ",
+        
+        // N行+ん（6文字）- 左手人差指への移動効果
+        "な", "に", "ぬ", "ね", "の", "ん",
+        
+        // 母音（5文字）- 右手集中効果
+        "あ", "い", "う", "え", "お",
+        
+        // 高頻度子音（7文字）- 全体的な改善効果
+        "し", "た", "と", "て", "さ", "す", "は",
+        
+        // 拗音（7文字）- 複合打鍵の最適化効果
+        "しゃ", "しゅ", "しょ", "きゃ", "きゅ", "ちゃ", "ちゅ"
+    };
+
     // キーイベントの種類
     enum class EventType {
         KEY_DOWN,
@@ -58,6 +76,9 @@ namespace Statistics {
         
         // 50音別入力時間（ローマ字入力での統計）
         std::map<std::string, double> kanaInputTime;  // かな→平均入力時間（ミリ秒）
+        
+        // Phase 7: 重要かな30文字の入力時間
+        std::map<std::string, double> importantKanaIntervals;  // 重要かな→平均入力時間（ミリ秒）
         
         StatisticsData()
             : totalDuration(0)
@@ -118,6 +139,9 @@ namespace Statistics {
         
         // Phase 3-2: 50音別平均入力時間取得
         std::map<std::string, double> getAvgKanaInputTime() const;
+        
+        // Phase 7: 重要かなの平均入力時間取得（フィルタリング版）
+        std::map<std::string, double> getImportantKanaIntervals() const;
         
         // 統計計算（judgeResultを使用）
         StatisticsData calculate(size_t correctCount, size_t incorrectCount);

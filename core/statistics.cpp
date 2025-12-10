@@ -73,6 +73,9 @@ namespace Statistics {
         // Phase 3-2: 50音別入力時間の計算
         data.kanaInputTime = getAvgKanaInputTime();
         
+        // Phase 7: 重要かな30文字の入力時間計算
+        data.importantKanaIntervals = getImportantKanaIntervals();
+        
         return data;
     }
 
@@ -223,6 +226,27 @@ namespace Statistics {
         }
         
         return avgTimes;
+    }
+
+    // Phase 7: 重要かなの平均入力時間取得（フィルタリング版）
+    std::map<std::string, double> Calculator::getImportantKanaIntervals() const {
+        // 全かなの平均入力時間を取得
+        auto allKanaTimes = getAvgKanaInputTime();
+        
+        // 重要かなのみをフィルタリング
+        std::map<std::string, double> importantTimes;
+        for (const auto& kana : IMPORTANT_KANA) {
+            auto it = allKanaTimes.find(kana);
+            if (it != allKanaTimes.end()) {
+                // データが存在する場合のみ追加
+                importantTimes[kana] = it->second;
+            } else {
+                // データが存在しない場合は0.0を設定
+                importantTimes[kana] = 0.0;
+            }
+        }
+        
+        return importantTimes;
     }
 
 } // namespace Statistics
