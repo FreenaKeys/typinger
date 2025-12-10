@@ -783,6 +783,10 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
     // キーリピート防止
     bool lastKeyStates[256] = {false};
     
+    // 累積カウンター（単語をまたいで保持）
+    size_t totalCorrectCount = 0;
+    size_t totalIncorrectCount = 0;
+    
     // タイマー開始
     timer.start();
     
@@ -900,6 +904,13 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
                 auto result = judge.judgeChar(ch);
                 recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
                 
+                // カウント更新
+                if (result == TypingJudge::JudgeResult::CORRECT) {
+                    totalCorrectCount++;
+                } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                    totalIncorrectCount++;
+                }
+                
                 if (result == TypingJudge::JudgeResult::CORRECT) {
                     if (currentRomajiBuffer.empty()) {
                         kanaStartTime = keyDownTime;
@@ -934,6 +945,7 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
                         targetText = entry["text"].asString();
                         std::string rawRubi = entry["ruby"].asString();
                         targetRubi = RomajiConverter::Converter::toRomaji(rawRubi);
+                        // 新しいJudgeを作成（カウントはtotalCorrectCount/totalIncorrectCountで保持）
                         judge = TypingJudge::Judge(targetText, targetRubi);
                     } else {
                         // エラー：テキスト取得失敗
@@ -961,6 +973,13 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
             
             auto result = judge.judgeChar(ch);
             recorder.setLastEventCorrectness(result == TypingJudge::JudgeResult::CORRECT);
+            
+            // カウント更新
+            if (result == TypingJudge::JudgeResult::CORRECT) {
+                totalCorrectCount++;
+            } else if (result == TypingJudge::JudgeResult::INCORRECT) {
+                totalIncorrectCount++;
+            }
             
             if (result == TypingJudge::JudgeResult::CORRECT) {
                 if (currentRomajiBuffer.empty()) {
@@ -1001,6 +1020,25 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
             lastKeyStates[0xBD] = false;
         }
         
+        // バックスペース処理
+        bool backspacePressed = (GetAsyncKeyState(VK_BACK) & 0x8000) != 0;
+        if (backspacePressed && !lastKeyStates[VK_BACK]) {
+            lastKeyStates[VK_BACK] = true;
+            
+            // バックスペース記録（引数なし）
+            recorder.recordBackspace();
+            
+            // ローマ字バッファをクリア（判定はやり直さない）
+            if (!currentRomajiBuffer.empty()) {
+                currentRomajiBuffer.pop_back();
+            }
+            
+            // キーリリース待機
+            while (GetAsyncKeyState(VK_BACK) & 0x8000) Sleep(10);
+        } else if (!backspacePressed && lastKeyStates[VK_BACK]) {
+            lastKeyStates[VK_BACK] = false;
+        }
+        
         Sleep(10);
     }
     
@@ -1023,7 +1061,8 @@ int run_single_experiment_test(const ExperimentSession& session, int testNumber)
         }
     }
     
-    auto stats = statsCalc.calculate(judge.getCorrectCount(), judge.getIncorrectCount());
+    // 累積カウントを使用して統計計算
+    auto stats = statsCalc.calculate(totalCorrectCount, totalIncorrectCount);
 
     // CSV出力（実験データ用）
     CSVLogger::ExperimentData expData;
