@@ -208,6 +208,18 @@ namespace TypingJudge {
                     }
                 }
             }
+            
+            // 撥音の後の「chi」->「ti」対応
+            // 「んち」が「nchi」として登録されている場合、「nti」でも正解とする
+            // Target: "c" (after 'n'), Input: 't'
+            // Context: 前の文字が'n'で、現在が"chi"の先頭'c'、入力が't'の場合
+            if (currentPosition_ > 0 && targetRubi_[currentPosition_-1] == 'n' && expected == 'c' && normalizedInput == 't') {
+                if (targetRubi_.length() >= currentPosition_ + 3 && targetRubi_.substr(currentPosition_, 3) == "chi") {
+                    correctCount_++;
+                    currentPosition_ += 2; // 'c'と'h'を消費（次は'i'）
+                    return JudgeResult::CORRECT;
+                }
+            }
 
             // 不正解
             incorrectCount_++;
