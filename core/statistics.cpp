@@ -76,6 +76,10 @@ namespace Statistics {
         // Phase 7: 重要かな30文字の入力時間計算
         data.importantKanaIntervals = getImportantKanaIntervals();
         
+        // Phase 7a-3: 出現頻度データ計算
+        data.categoryFrequency = calculateCategoryFrequency();
+        data.importantKanaFrequency = calculateImportantKanaFrequency();
+        
         return data;
     }
 
@@ -247,6 +251,68 @@ namespace Statistics {
         }
         
         return importantTimes;
+    }
+
+    // Phase 7a-3: カテゴリー別出現頻度計算
+    std::vector<FrequencyData> Calculator::calculateCategoryFrequency() const {
+        // 全かなの出現回数を集計
+        std::map<std::string, size_t> kanaCount;
+        size_t totalCount = 0;
+        
+        for (const auto& kanaInput : kanaInputs_) {
+            kanaCount[kanaInput.kana]++;
+            totalCount++;
+        }
+        
+        // カテゴリーごとに集計
+        std::vector<FrequencyData> result;
+        for (const auto& category : KANA_CATEGORIES) {
+            size_t categoryCount = 0;
+            for (const auto& kana : category.second) {
+                auto it = kanaCount.find(kana);
+                if (it != kanaCount.end()) {
+                    categoryCount += it->second;
+                }
+            }
+            
+            double percentage = (totalCount > 0) 
+                ? (static_cast<double>(categoryCount) / totalCount * 100.0) 
+                : 0.0;
+            
+            result.emplace_back(category.first, categoryCount, percentage);
+        }
+        
+        return result;
+    }
+
+    // Phase 7a-3: 重要かな30文字の出現頻度計算
+    std::vector<FrequencyData> Calculator::calculateImportantKanaFrequency() const {
+        // 全かなの出現回数を集計
+        std::map<std::string, size_t> kanaCount;
+        size_t totalCount = 0;
+        
+        for (const auto& kanaInput : kanaInputs_) {
+            kanaCount[kanaInput.kana]++;
+            totalCount++;
+        }
+        
+        // 重要30文字の出現回数を取得
+        std::vector<FrequencyData> result;
+        for (const auto& kana : IMPORTANT_KANA) {
+            size_t count = 0;
+            auto it = kanaCount.find(kana);
+            if (it != kanaCount.end()) {
+                count = it->second;
+            }
+            
+            double percentage = (totalCount > 0) 
+                ? (static_cast<double>(count) / totalCount * 100.0) 
+                : 0.0;
+            
+            result.emplace_back(kana, count, percentage);
+        }
+        
+        return result;
     }
 
 } // namespace Statistics

@@ -33,6 +33,34 @@ namespace Statistics {
         "しゃ", "しゅ", "しょ", "きゃ", "きゅ", "ちゃ", "ちゅ"
     };
 
+    // Phase 7a-3: かなカテゴリー定義（出現頻度分析用）
+    const std::map<std::string, std::vector<std::string>> KANA_CATEGORIES = {
+        {"母音", {"あ", "い", "う", "え", "お"}},
+        {"K行", {"か", "き", "く", "け", "こ"}},
+        {"S行", {"さ", "し", "す", "せ", "そ"}},
+        {"T行", {"た", "ち", "つ", "て", "と"}},
+        {"N行", {"な", "に", "ぬ", "ね", "の"}},
+        {"H行", {"は", "ひ", "ふ", "へ", "ほ"}},
+        {"M行", {"ま", "み", "む", "め", "も"}},
+        {"Y行", {"や", "ゆ", "よ"}},
+        {"R行", {"ら", "り", "る", "れ", "ろ"}},
+        {"W行", {"わ", "を", "ん"}},
+        {"濁音", {"が", "ぎ", "ぐ", "げ", "ご", "ざ", "じ", "ず", "ぜ", "ぞ", "だ", "ぢ", "づ", "で", "ど", "ば", "び", "ぶ", "べ", "ぼ"}},
+        {"半濁音", {"ぱ", "ぴ", "ぷ", "ぺ", "ぽ"}},
+        {"拗音", {"きゃ", "きゅ", "きょ", "しゃ", "しゅ", "しょ", "ちゃ", "ちゅ", "ちょ", "にゃ", "にゅ", "にょ", "ひゃ", "ひゅ", "ひょ", "みゃ", "みゅ", "みょ", "りゃ", "りゅ", "りょ", "ぎゃ", "ぎゅ", "ぎょ", "じゃ", "じゅ", "じょ", "びゃ", "びゅ", "びょ", "ぴゃ", "ぴゅ", "ぴょ"}}
+    };
+
+    // Phase 7a-3: 出現頻度データ
+    struct FrequencyData {
+        std::string item;           // 項目名（カテゴリー名 or 文字）
+        size_t count;               // 出現回数
+        double percentage;          // 全体比率（%）
+        
+        FrequencyData() : item(""), count(0), percentage(0.0) {}
+        FrequencyData(const std::string& i, size_t c, double p)
+            : item(i), count(c), percentage(p) {}
+    };
+
     // キーイベントの種類
     enum class EventType {
         KEY_DOWN,
@@ -79,6 +107,10 @@ namespace Statistics {
         
         // Phase 7: 重要かな30文字の入力時間
         std::map<std::string, double> importantKanaIntervals;  // 重要かな→平均入力時間（ミリ秒）
+        
+        // Phase 7a-3: 出現頻度データ
+        std::vector<FrequencyData> categoryFrequency;    // カテゴリー別出現頻度
+        std::vector<FrequencyData> importantKanaFrequency;  // 重要30文字の出現頻度
         
         StatisticsData()
             : totalDuration(0)
@@ -142,6 +174,10 @@ namespace Statistics {
         
         // Phase 7: 重要かなの平均入力時間取得（フィルタリング版）
         std::map<std::string, double> getImportantKanaIntervals() const;
+        
+        // Phase 7a-3: 出現頻度計算
+        std::vector<FrequencyData> calculateCategoryFrequency() const;
+        std::vector<FrequencyData> calculateImportantKanaFrequency() const;
         
         // 統計計算（judgeResultを使用）
         StatisticsData calculate(size_t correctCount, size_t incorrectCount);

@@ -233,6 +233,18 @@ namespace CSVLogger {
             }
         }
         
+        // Phase 7a-3: カテゴリー別出現頻度（13カテゴリー）
+        for (const auto& freq : stats.categoryFrequency) {
+            file << "カテゴリー_" << freq.item << "," << freq.count << "," 
+                 << std::fixed << std::setprecision(2) << freq.percentage << ",percent\n";
+        }
+        
+        // Phase 7a-3: 重要かな30文字の出現頻度
+        for (const auto& freq : stats.importantKanaFrequency) {
+            file << "重要文字_" << freq.item << "," << freq.count << "," 
+                 << std::fixed << std::setprecision(2) << freq.percentage << ",percent\n";
+        }
+        
         file.close();
         
         // かな別入力時間を別ファイルに出力
@@ -413,6 +425,18 @@ namespace CSVLogger {
                 // データがない場合は0.0を出力
                 file << "かな_" << kana << ",0.00,milliseconds\n";
             }
+        }
+        
+        // Phase 7a-3: カテゴリー別出現頻度（13カテゴリー）
+        for (const auto& freq : stats.categoryFrequency) {
+            file << "カテゴリー_" << freq.item << "," << freq.count << "," 
+                 << std::fixed << std::setprecision(2) << freq.percentage << ",percent\n";
+        }
+        
+        // Phase 7a-3: 重要かな30文字の出現頻度
+        for (const auto& freq : stats.importantKanaFrequency) {
+            file << "重要文字_" << freq.item << "," << freq.count << "," 
+                 << std::fixed << std::setprecision(2) << freq.percentage << ",percent\n";
         }
         
         // セッション間の区切り（空行）
